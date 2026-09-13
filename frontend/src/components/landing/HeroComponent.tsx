@@ -334,13 +334,13 @@ export default function SphereHero() {
 
           {/* CTA Buttons */}
           <div className="flex flex-wrap items-center justify-center gap-4 mt-1">
-            <button className="btn-glass btn-ghost-glass w-64">
-              Launch Risk Engine
-            </button>
+            <a href="/home" className="btn-glass btn-primary-glass min-w-[190px] px-10">
+              Get Started
+            </a>
 
-            <button className="btn-glass btn-ghost-glass w-64">
-              View System Architecture
-            </button>
+            <a href="/login" className="btn-glass btn-ghost-glass min-w-[190px] px-10">
+              User Login
+            </a>
           </div>
 
           {/* Fine-print */}
