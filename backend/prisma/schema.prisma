@@ -1,0 +1,31 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id                        String            @default(uuid())    @id
+  name                      String
+  email                     String            @unique
+  password                  String
+  createdAt                 DateTime          @default(now())
+  updatedAt                 DateTime          @updatedAt
+  reports                   DocumentReport[]
+}
+
+model Blacklist {
+  id                        String            @default(uuid())    @id
+  jti                       String            @unique
+  createdAt                 DateTime          @default(now())
+  updatedAt                 DateTime          @updatedAt
+}
+
+model DocumentReport {
+  id                        String            @default(uuid())    @id
+
+  userId                    String
+  user                      User              @relation(fields: [userId], references: [id])
+}
