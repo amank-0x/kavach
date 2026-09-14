@@ -4,29 +4,68 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 model User {
-  id                        String            @default(uuid())    @id
-  name                      String
-  email                     String            @unique
-  password                  String
-  createdAt                 DateTime          @default(now())
-  updatedAt                 DateTime          @updatedAt
-  reports                   DocumentReport[]
+  id        String           @id @default(uuid())
+  name      String
+  email     String           @unique
+  password  String
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  reports   DocumentReport[]
+  documents Document[]
 }
 
 model Blacklist {
-  id                        String            @default(uuid())    @id
-  jti                       String            @unique
-  createdAt                 DateTime          @default(now())
-  updatedAt                 DateTime          @updatedAt
+  id        String   @id @default(uuid())
+  jti       String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model DocumentReport {
-  id                        String            @default(uuid())    @id
+  id                     String    @id @default(uuid())
+  reportReference        String    @unique
+  userId                 String
+  documentId             String
+  status                 String    @default("COMPLETED")
+  overallRiskScore       Decimal?  @db.Decimal(7, 2)
+  verdict                String?
+  riskLevel              String?
+  fullName               String?
+  dateOfBirth            String?
+  identifier             String?
+  mrzChecksumValid       Boolean?
+  authenticityConfidence Decimal?  @db.Decimal(5, 2)
+  tamperedProbability   Decimal?  @db.Decimal(5, 2)
+  tamperDecision        String?
+  elaVariance            Decimal?  @db.Decimal(7, 2)
+  edgeResponse           Decimal?  @db.Decimal(7, 2)
+  noiseTexture           Decimal?  @db.Decimal(7, 2)
+  sharpness              Decimal?  @db.Decimal(7, 2)
+  fontConsistency        Decimal?  @db.Decimal(5, 2)
+  consentGranted         Boolean   @default(false)
+  consentedAt            DateTime?
+  createdAt              DateTime  @default(now())
 
-  userId                    String
-  user                      User              @relation(fields: [userId], references: [id])
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([documentId, createdAt])
+  @@index([status])
+}
+
+model Document {
+  id           String   @id @default(uuid())
+  userId       String
+  documentType String   @default("PASSPORT")
+  createdAt    DateTime @default(now())
+
+  user    User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reports DocumentReport[]
+
+  @@index([userId, createdAt])
+  @@index([documentType])
 }

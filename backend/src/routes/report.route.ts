@@ -1,0 +1,213 @@
+import { Router } from "express";
+import multer from "multer";
+import prismaClient, { withDatabaseRetry } from "../config/db.js";
+import { authMiddleware } from "../middleware/authMiddleware.js";
+
+const reportRouter: Router = Router();
+const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 25 * 1024 * 1024, files: 2 },
+});
+
+const screeningApiUrl = process.env.SCREENING_API_URL || "http://127.0.0.1:8000/screen-document";
+
+type ScreeningResponse = {
+    ocr_validation?: {
+        visual?: Record<string, unknown>;
+        mrz?: Record<string, unknown>;
+    };
+    tamper_detection?: {
+        tampered_probability?: unknown;
+        decision?: unknown;
+        features?: Record<string, unknown>;
+    };
+    overall?: {
+        overall_risk_score?: unknown;
+        risk_level?: unknown;
+    };
+};
+
+const asString = (value: unknown) => typeof value === "string" && value.trim() ? value.trim() : undefined;
+const asNumber = (value: unknown) => typeof value === "number" && Number.isFinite(value) ? value : undefined;
+const routeParam = (value: string | string[] | undefined) => Array.isArray(value) ? value[0] : value;
+
+const serializeReport = (report: any) => ({
+    id: report.id,
+    reportReference: report.reportReference,
+    status: report.status,
+    documentType: report.document?.documentType,
+    overallRiskScore: report.overallRiskScore?.toNumber?.() ?? report.overallRiskScore,
+    verdict: report.verdict,
+    riskLevel: report.riskLevel,
+    fullName: report.fullName,
+    dateOfBirth: report.dateOfBirth,
+    identifier: report.identifier,
+    mrzChecksumValid: report.mrzChecksumValid,
+    authenticityConfidence: report.authenticityConfidence?.toNumber?.() ?? report.authenticityConfidence,
+    tamperedProbability: report.tamperedProbability?.toNumber?.() ?? report.tamperedProbability,
+    tamperDecision: report.tamperDecision,
+    elaVariance: report.elaVariance?.toNumber?.() ?? report.elaVariance,
+    edgeResponse: report.edgeResponse?.toNumber?.() ?? report.edgeResponse,
+    noiseTexture: report.noiseTexture?.toNumber?.() ?? report.noiseTexture,
+    sharpness: report.sharpness?.toNumber?.() ?? report.sharpness,
+    fontConsistency: report.fontConsistency?.toNumber?.() ?? report.fontConsistency,
+    consentGranted: report.consentGranted,
+    consentedAt: report.consentedAt,
+    createdAt: report.createdAt,
+});
+
+const reportInclude = { document: { select: { documentType: true } } } as const;
+
+reportRouter.get("/", authMiddleware, async (req, res) => {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+    try {
+        const reports = await withDatabaseRetry(() => prismaClient.documentReport.findMany({
+            where: { userId },
+            include: reportInclude,
+            orderBy: { createdAt: "desc" },
+        }));
+        return res.status(200).json({ reports: reports.map(serializeReport) });
+    } catch (error) {
+        console.error("Error fetching reports:", error);
+        return res.status(500).json({ message: "Something went wrong" });
+    }
+});
+
+reportRouter.get("/:id", authMiddleware, async (req, res) => {
+    const userId = req.user?.id;
+    const reportId = routeParam(req.params.id);
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+    if (!reportId) return res.status(400).json({ message: "Report id is required" });
+
+    try {
+        const report = await withDatabaseRetry(() => prismaClient.documentReport.findFirst({
+            where: { userId, OR: [{ id: reportId }, { reportReference: reportId }] },
+            include: reportInclude,
+        }));
+        if (!report) return res.status(404).json({ message: "Report not found" });
+        return res.status(200).json({ report: serializeReport(report) });
+    } catch (error) {
+        console.error("Error fetching report:", error);
+        return res.status(500).json({ message: "Something went wrong" });
+    }
+});
+
+reportRouter.delete("/:id", authMiddleware, async (req, res) => {
+    const userId = req.user?.id;
+    const reportId = routeParam(req.params.id);
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+    if (!reportId) return res.status(400).json({ message: "Report id is required" });
+
+    try {
+        const report = await prismaClient.documentReport.findFirst({
+            where: { userId, OR: [{ id: reportId }, { reportReference: reportId }] },
+            select: { id: true, documentId: true },
+        });
+        if (!report) return res.status(404).json({ message: "Report not found" });
+
+        await prismaClient.$transaction(async (transaction) => {
+            await transaction.documentReport.delete({ where: { id: report.id } });
+            const remainingReports = await transaction.documentReport.count({ where: { documentId: report.documentId } });
+            if (remainingReports === 0) {
+                await transaction.document.delete({ where: { id: report.documentId } });
+            }
+        });
+
+        return res.status(200).json({ message: "Report deleted successfully" });
+    } catch (error) {
+        console.error("Error deleting report:", error);
+        return res.status(500).json({ message: "Something went wrong" });
+    }
+});
+
+reportRouter.post(
+    "/scan",
+    authMiddleware,
+    upload.fields([
+        { name: "doc_image", maxCount: 1 },
+        { name: "live_image", maxCount: 1 },
+    ]),
+    async (req, res) => {
+        const userId = req.user?.id;
+        if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+        const files = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
+        const documentImage = files?.doc_image?.[0];
+        const liveImage = files?.live_image?.[0];
+
+        if (!documentImage || !liveImage) {
+            return res.status(400).json({ message: "doc_image and live_image are required" });
+        }
+        if (req.body.consent_granted !== "true") {
+            return res.status(400).json({ message: "Consent is required before screening" });
+        }
+        const documentType = String(req.body.document_type || "PASSPORT").toUpperCase();
+        if (documentType !== "PASSPORT") {
+            return res.status(400).json({ message: "Only passport screening is currently supported" });
+        }
+
+        try {
+            const formData = new FormData();
+            formData.append("doc_image", new Blob([new Uint8Array(documentImage.buffer).buffer as ArrayBuffer], { type: documentImage.mimetype }), documentImage.originalname);
+            formData.append("live_image", new Blob([new Uint8Array(liveImage.buffer).buffer as ArrayBuffer], { type: liveImage.mimetype }), liveImage.originalname);
+
+            const screeningResponse = await fetch(screeningApiUrl, { method: "POST", body: formData });
+            const screeningResult = await screeningResponse.json() as ScreeningResponse;
+            if (!screeningResponse.ok) {
+                return res.status(502).json({ message: "Document screening service failed", details: screeningResult });
+            }
+
+            const visual = screeningResult.ocr_validation?.visual || {};
+            const mrz = screeningResult.ocr_validation?.mrz || {};
+            const tamper = screeningResult.tamper_detection || {};
+            const features = tamper.features || {};
+            const overall = screeningResult.overall || {};
+            const overallRiskScore = asNumber(overall.overall_risk_score);
+            const tamperedProbability = asNumber(tamper.tampered_probability);
+            const mrzChecks = mrz.checksum_valid;
+            const mrzChecksumValid = typeof mrzChecks === "object" && mrzChecks !== null
+                ? Object.values(mrzChecks as Record<string, unknown>).every((value) => value === true)
+                : undefined;
+            const verdict = overallRiskScore !== undefined && overallRiskScore < 30 && (tamperedProbability === undefined || tamperedProbability < 20) ? "Passed" : "Flagged";
+            const reportReference = `KAV-${Date.now().toString().slice(-6)}`;
+
+            const report = await prismaClient.$transaction(async (transaction) => {
+                const document = await transaction.document.create({ data: { userId, documentType } });
+                return transaction.documentReport.create({
+                    data: {
+                        reportReference,
+                        userId,
+                        documentId: document.id,
+                        status: "COMPLETED",
+                        overallRiskScore: overallRiskScore ?? null,
+                        verdict,
+                        riskLevel: asString(overall.risk_level) ?? null,
+                        fullName: asString(visual.name) || asString(mrz.name_mrz) || null,
+                        dateOfBirth: asString(visual.date_of_birth) || asString(mrz.dob_mrz) || null,
+                        identifier: asString(visual.passport_number) || asString(mrz.passport_number_mrz) || null,
+                        mrzChecksumValid: mrzChecksumValid ?? null,
+                        authenticityConfidence: tamperedProbability === undefined ? null : 100 - tamperedProbability,
+                        tamperedProbability: tamperedProbability ?? null,
+                        tamperDecision: asString(tamper.decision) ?? null,
+                        elaVariance: asNumber(features.ela) ?? null,
+                        edgeResponse: asNumber(features.edge) ?? null,
+                        noiseTexture: asNumber(features.noise_texture) ?? null,
+                        sharpness: asNumber(features.sharpness) ?? null,
+                        consentGranted: true,
+                        consentedAt: new Date(),
+                    },
+                    include: reportInclude,
+                });
+            });
+
+            return res.status(201).json({ report: serializeReport(report) });
+        } catch (error) {
+            console.error("Error creating report:", error);
+            return res.status(502).json({ message: "Unable to create document report" });
+        }
+    },
+);
+
+export default reportRouter;

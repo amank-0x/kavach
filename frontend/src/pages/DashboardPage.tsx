@@ -2,22 +2,37 @@ import { AlertTriangle, ArrowUpRight, FileCheck2, LoaderCircle, Plus, ShieldChec
 import { Link, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { getCurrentUser, logout, type User } from "../api/auth.api";
+import { getReports, type ReportRecord } from "../api/report.api";
 import HomeHeader from "../components/home/HomeHeader";
 import HomeSidebar from "../components/home/HomeSidebar";
 
-const scans = [
-  { id: "KAV-84920", type: "Passport", time: "12 mins ago", score: "0.94", verdict: "Passed", report: "KAV-84920" },
-  { id: "KAV-84911", type: "Passport", time: "48 mins ago", score: "0.61", verdict: "Flagged", report: "KAV-84911" },
-  { id: "KAV-84876", type: "Aadhaar", time: "Yesterday", score: "0.89", verdict: "Passed", report: "KAV-84876" },
-];
+type ScanRow = { id: string; type: string; time: string; score: string; verdict: string; report: string };
+
+const toScanRow = (report: ReportRecord): ScanRow => ({
+  id: report.reportReference,
+  type: report.documentType ? `${report.documentType.charAt(0)}${report.documentType.slice(1).toLowerCase()}` : "Document",
+  time: new Date(report.createdAt).toLocaleString(),
+  score: report.overallRiskScore?.toFixed(2) || "-",
+  verdict: report.verdict || "Pending",
+  report: report.reportReference,
+});
 
 export default function DashboardPage() {
   const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
+  const [scans, setScans] = useState<ScanRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    getCurrentUser().then(setUser).catch(() => navigate("/auth")).finally(() => setLoading(false));
+    getCurrentUser().then(async (currentUser) => {
+      setUser(currentUser);
+      try {
+        const response = await getReports();
+        setScans(response.reports.map(toScanRow));
+      } catch {
+        setScans([]);
+      }
+    }).catch(() => navigate("/auth")).finally(() => setLoading(false));
   }, [navigate]);
 
   const handleLogout = async () => { try { await logout(); } finally { navigate("/auth"); } };
@@ -32,15 +47,15 @@ export default function DashboardPage() {
         <HomeHeader onLogout={handleLogout} />
         <div className="mx-auto max-w-7xl space-y-8 px-5 py-8 sm:px-8 lg:px-10">
           <div className="grid gap-5 md:grid-cols-3">
-            <div className="rounded-xl border border-red-500/15 bg-white/[0.035] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.07),0_18px_40px_rgba(90,12,28,0.18)] backdrop-blur-xl"><div className="flex items-center justify-between"><p className="font-mono text-xs uppercase tracking-wider text-slate-500">Total documents screened</p><FileCheck2 className="h-4 w-4 text-red-400" /></div><p className="mt-4 text-3xl font-black text-white">1,284 <span className="text-sm font-normal text-slate-500">processed</span></p><p className="mt-4 text-xs text-slate-500">Unlimited local verification engine</p></div>
-            <div className="rounded-xl border border-red-500/25 bg-red-950/10 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.07),0_18px_40px_rgba(127,29,29,0.24)] backdrop-blur-xl"><div className="flex items-center justify-between"><p className="font-mono text-xs uppercase tracking-wider text-slate-500">Integrity flags</p><AlertTriangle className="h-4 w-4 text-red-400" /></div><p className="mt-4 text-3xl font-black text-red-300">14 <span className="text-sm font-normal text-slate-500">flagged</span></p><p className="mt-4 text-xs text-red-200/60">98.6% document screening accuracy</p></div>
+            <div className="rounded-xl border border-red-500/15 bg-white/[0.035] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.07),0_18px_40px_rgba(90,12,28,0.18)] backdrop-blur-xl"><div className="flex items-center justify-between"><p className="font-mono text-xs uppercase tracking-wider text-slate-500">Total documents screened</p><FileCheck2 className="h-4 w-4 text-red-400" /></div><p className="mt-4 text-3xl font-black text-white">{scans.length} <span className="text-sm font-normal text-slate-500">records</span></p><p className="mt-4 text-xs text-slate-500">Loaded from your report archive</p></div>
+            <div className="rounded-xl border border-red-500/25 bg-red-950/10 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.07),0_18px_40px_rgba(127,29,29,0.24)] backdrop-blur-xl"><div className="flex items-center justify-between"><p className="font-mono text-xs uppercase tracking-wider text-slate-500">Integrity flags</p><AlertTriangle className="h-4 w-4 text-red-400" /></div><p className="mt-4 text-3xl font-black text-red-300">{scans.filter((scan) => scan.verdict === "Flagged").length} <span className="text-sm font-normal text-slate-500">flagged</span></p><p className="mt-4 text-xs text-red-200/60">Based on stored screening verdicts</p></div>
             <div className="rounded-xl border border-emerald-500/20 bg-emerald-950/10 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.07),0_18px_40px_rgba(90,12,28,0.14)] backdrop-blur-xl"><div className="flex items-center justify-between"><p className="font-mono text-xs uppercase tracking-wider text-slate-500">Edge engine latency</p><ShieldCheck className="h-4 w-4 text-emerald-400" /></div><p className="mt-4 text-3xl font-black text-emerald-300">1.18s</p><p className="mt-4 text-xs text-emerald-200/60">Average local processing time</p></div>
           </div>
 
           <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center"><div><p className="font-mono text-xs uppercase tracking-[0.18em] text-red-400">Audit workspace</p><h2 className="mt-2 text-2xl font-black text-white">Scan activity & records</h2></div><Link to="/dashboard/scan" className="inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 px-5 py-3 text-sm font-bold text-white shadow-[0_0_20px_rgba(220,38,38,0.25)] transition-colors hover:bg-red-500"><Plus className="h-4 w-4" aria-hidden="true" /> Initiate verification</Link></div>
 
           <section className="overflow-hidden rounded-2xl border border-red-500/15 bg-white/[0.035] shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_22px_60px_rgba(90,12,28,0.2)] backdrop-blur-xl">
-            <div className="overflow-x-auto"><table className="w-full min-w-[720px] text-left"><thead className="border-b border-slate-800 bg-slate-950/50 font-mono text-xs uppercase tracking-wider text-slate-500"><tr><th className="px-6 py-4 font-medium">Scan ID</th><th className="px-6 py-4 font-medium">Document type</th><th className="px-6 py-4 font-medium">Timestamp</th><th className="px-6 py-4 font-medium">Integrity score</th><th className="px-6 py-4 font-medium">Verdict</th><th className="px-6 py-4 font-medium">Action</th></tr></thead><tbody className="divide-y divide-slate-800/70">{scans.map((scan) => <tr key={scan.id} className="transition-colors hover:bg-white/[0.025]"><td className="px-6 py-5 font-mono text-sm text-slate-300">{scan.id}</td><td className="px-6 py-5"><span className="rounded-md border border-red-500/20 bg-red-500/10 px-2.5 py-1 text-xs text-red-300">{scan.type}</span></td><td className="px-6 py-5 text-sm text-slate-500">{scan.time}</td><td className="px-6 py-5 font-mono text-sm text-slate-300">{scan.score} <span className="text-slate-600">match</span></td><td className="px-6 py-5"><span className={`rounded-full border px-2.5 py-1 font-mono text-xs ${scan.verdict === "Passed" ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-300" : "border-red-500/20 bg-red-500/10 text-red-300"}`}>{scan.verdict}</span></td><td className="px-6 py-5"><Link to={`/dashboard/report/${scan.report}`} className="inline-flex items-center gap-1 text-sm font-semibold text-red-300 hover:text-red-200">View report <ArrowUpRight className="h-3.5 w-3.5" /></Link></td></tr>)}</tbody></table></div>
+            <div className="overflow-x-auto"><table className="w-full min-w-[720px] text-left"><thead className="border-b border-slate-800 bg-slate-950/50 font-mono text-xs uppercase tracking-wider text-slate-500"><tr><th className="px-6 py-4 font-medium">Scan ID</th><th className="px-6 py-4 font-medium">Document type</th><th className="px-6 py-4 font-medium">Timestamp</th><th className="px-6 py-4 font-medium">Integrity score</th><th className="px-6 py-4 font-medium">Verdict</th><th className="px-6 py-4 font-medium">Action</th></tr></thead><tbody className="divide-y divide-slate-800/70">{scans.length ? scans.map((scan) => <tr key={scan.id} className="transition-colors hover:bg-white/[0.025]"><td className="px-6 py-5 font-mono text-sm text-slate-300">{scan.id}</td><td className="px-6 py-5"><span className="rounded-md border border-red-500/20 bg-red-500/10 px-2.5 py-1 text-xs text-red-300">{scan.type}</span></td><td className="px-6 py-5 text-sm text-slate-500">{scan.time}</td><td className="px-6 py-5 font-mono text-sm text-slate-300">{scan.score} <span className="text-slate-600">match</span></td><td className="px-6 py-5"><span className={`rounded-full border px-2.5 py-1 font-mono text-xs ${scan.verdict === "Passed" ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-300" : "border-red-500/20 bg-red-500/10 text-red-300"}`}>{scan.verdict}</span></td><td className="px-6 py-5"><Link to={`/dashboard/report/${scan.report}`} className="inline-flex items-center gap-1 text-sm font-semibold text-red-300 hover:text-red-200">View report <ArrowUpRight className="h-3.5 w-3.5" /></Link></td></tr>) : <tr><td colSpan={6} className="px-6 py-12 text-center text-sm text-slate-500">No scanned documents yet. Start a verification to create your first report.</td></tr>}</tbody></table></div>
           </section>
         </div>
       </main>

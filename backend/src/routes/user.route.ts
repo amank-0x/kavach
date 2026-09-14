@@ -1,4 +1,4 @@
-import prismaClient from "../config/db.js";
+import prismaClient, { withDatabaseRetry } from "../config/db.js";
 import { Router } from "express";
 import bcrypt from "bcrypt";
 import { loginSchema, registerSchema } from "../types/index.js";
@@ -112,7 +112,7 @@ userRouter.get("/", authMiddleware, async (req, res) => {
     }
 
     try {
-        const user = await prismaClient.user.findUnique({
+        const user = await withDatabaseRetry(() => prismaClient.user.findUnique({
             where: {
                 id: userId,
             },
@@ -122,7 +122,7 @@ userRouter.get("/", authMiddleware, async (req, res) => {
                 email: true,
                 createdAt: true,
             }
-        })
+        }))
 
         if(!user) {
             return res.status(404).json({

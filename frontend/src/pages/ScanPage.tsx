@@ -1,6 +1,7 @@
 import { ArrowLeft, Camera, CameraOff, CheckCircle2, CreditCard, Database, EyeOff, FileText, Globe, LoaderCircle, LockKeyhole, RefreshCw, ShieldCheck, UploadCloud, Video, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { createReport } from "../api/report.api";
 
 export default function ScanPage() {
   const navigate = useNavigate();
@@ -9,6 +10,7 @@ export default function ScanPage() {
   const streamRef = useRef<MediaStream | null>(null);
 
   const [file, setFile] = useState("");
+  const [documentFile, setDocumentFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState("");
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -129,6 +131,7 @@ export default function ScanPage() {
           clearInterval(timer);
           setUploading(false);
           setFile(selectedFile.name);
+          setDocumentFile(selectedFile);
           setPreviewUrl(objectUrl);
           return 100;
         }
@@ -142,6 +145,7 @@ export default function ScanPage() {
       URL.revokeObjectURL(previewUrl);
     }
     setFile("");
+    setDocumentFile(null);
     setPreviewUrl("");
     setUploading(false);
     setUploadProgress(0);
@@ -178,10 +182,25 @@ export default function ScanPage() {
     handleOpenCamera();
   };
 
-  const execute = () => {
-    if (!file || !captured || !consented) return;
+  const execute = async () => {
+    if (!documentFile || !capturedPhotoUrl || !consented || running) return;
+    setError("");
     setRunning(true);
-    window.setTimeout(() => navigate("/dashboard/report/KAV-84921"), 1200);
+    try {
+      const photoResponse = await fetch(capturedPhotoUrl);
+      const photoBlob = await photoResponse.blob();
+      const livePhoto = new File([photoBlob], "live-photo.jpg", { type: "image/jpeg" });
+      const response = await createReport({
+        document: documentFile,
+        livePhoto,
+        documentType: selectedDoc,
+        consentGranted: consented,
+      });
+      navigate(`/dashboard/report/${response.report.reportReference}`);
+    } catch (requestError) {
+      setRunning(false);
+      setError(requestError instanceof Error ? requestError.message : "Unable to create the verification report.");
+    }
   };
 
   return (
@@ -488,9 +507,21 @@ export default function ScanPage() {
           </label>
         </section>
         
+        {running && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0b0f19]/85 p-6 backdrop-blur-md" role="status" aria-live="polite">
+            <div className="w-full max-w-md rounded-2xl border border-red-500/30 bg-[#171923]/95 p-8 text-center shadow-[0_0_60px_rgba(127,29,29,0.28)]">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-red-500/35 bg-red-500/10"><LoaderCircle className="h-8 w-8 animate-spin text-red-300" /></div>
+              <h2 className="mt-5 text-xl font-bold text-white">Screening document...</h2>
+              <p className="mt-2 text-sm leading-6 text-slate-400">Sending both captures to the local verification service and preparing your report.</p>
+              <div className="mt-6 h-1.5 overflow-hidden rounded-full bg-slate-800"><div className="h-full w-1/3 animate-pulse rounded-full bg-red-500" /></div>
+              <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.18em] text-red-300">OCR • MRZ • Integrity analysis</p>
+            </div>
+          </div>
+        )}
+
         <button
           type="button"
-          disabled={!file || !captured || !consented || running}
+          disabled={!documentFile || !capturedPhotoUrl || !consented || running}
           onClick={execute}
           className={`flex w-full items-center justify-center gap-3 rounded-xl border py-4 font-mono text-sm font-bold tracking-wide transition-all ${
             file && captured && !running
