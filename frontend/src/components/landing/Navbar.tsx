@@ -4,7 +4,7 @@ export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const navLinks = [
-    { name: "How It Works", href: "#how-it-works" },
+    { name: "How It Works", href: "#problem" },
     { name: "Technology", href: "#technology" },
     { name: "Security", href: "#security" },
     { name: "About Kavach", href: "#about" },

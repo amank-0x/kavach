@@ -7,12 +7,14 @@ import HomePage from './pages/HomePage'
 function App() {
   return (
     <Router>
-      <Routes>
-        <Route path="/" element={<LandingPage />} />
-        <Route path="/home" element={<HomePage />} />
-        {/*<Route path="/results/:id" element={<ResultsPage />} />*/}
-        {/*<Route path="/report/shared/:id" element={<SharedReportPage />} />*/}
-      </Routes>
+      <div className="w-full max-w-none">
+        <Routes>
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/home" element={<HomePage />} />
+          {/*<Route path="/results/:id" element={<ResultsPage />} />*/}
+          {/*<Route path="/report/shared/:id" element={<SharedReportPage />} />*/}
+        </Routes>
+      </div>
     </Router>
   )
 }

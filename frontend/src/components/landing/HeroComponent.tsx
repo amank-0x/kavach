@@ -97,96 +97,7 @@ export default function SphereHero() {
   });
 
   return (
-    <>
-      <style>{`
-        @keyframes sphereRotate {
-          from { transform: rotateY(0deg) rotateX(15deg); }
-          to   { transform: rotateY(360deg) rotateX(15deg); }
-        }
-        @keyframes gridPan {
-          from { background-position: 0 0; }
-          to   { background-position: 40px 40px; }
-        }
-        @keyframes corePulse {
-          0%, 100% { opacity: 0.65; transform: translate(-50%, -50%) scale(1); }
-          50%       { opacity: 1;    transform: translate(-50%, -50%) scale(1.1); }
-        }
-        @keyframes badgePing {
-          0%, 100% { opacity: 1; }
-          50%       { opacity: 0.4; }
-        }
-        .sphere-rotate-anim {
-          animation: sphereRotate ${CONFIG.sphereRotationDuration} linear infinite;
-          transform-style: preserve-3d;
-        }
-        .grid-pan-anim {
-          animation: gridPan ${CONFIG.gridPanDuration} linear infinite;
-        }
-        .core-pulse-anim {
-          animation: corePulse ${CONFIG.coreGlowDuration} ease-in-out infinite;
-        }
-        .badge-ping {
-          animation: badgePing 2.4s ease-in-out infinite;
-        }
-
-        /* Glass button base */
-        .btn-glass {
-          position: relative;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          gap: 8px;
-          padding: 14px 28px;
-          border-radius: 14px;
-          font-size: 0.95rem;
-          font-weight: 700;
-          letter-spacing: 0.02em;
-          cursor: pointer;
-          transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
-          backdrop-filter: blur(16px) saturate(160%);
-          -webkit-backdrop-filter: blur(16px) saturate(160%);
-        }
-        .btn-glass:hover  { transform: translateY(-2px) scale(1.03); }
-        .btn-glass:active { transform: scale(0.97); }
-
-        /* Primary — solid glass red */
-        .btn-primary-glass {
-          background: rgba(220, 38, 38, 0.75);
-          border: 1.5px solid rgba(255, 120, 120, 0.45);
-          color: #ffffff;
-          box-shadow:
-            0 0 22px rgba(220, 38, 38, 0.55),
-            inset 0 1px 0 rgba(255,255,255,0.18);
-          text-shadow: 0 1px 4px rgba(0,0,0,0.4);
-        }
-        .btn-primary-glass:hover {
-          background: rgba(239, 68, 68, 0.85);
-          box-shadow:
-            0 0 38px rgba(239, 68, 68, 0.7),
-            inset 0 1px 0 rgba(255,255,255,0.22);
-        }
-
-        /* Secondary — ghost glass */
-        .btn-ghost-glass {
-          background: rgba(255, 255, 255, 0.06);
-          border: 1.5px solid rgba(220, 38, 38, 0.5);
-          color: #fca5a5;
-          box-shadow:
-            0 0 12px rgba(220, 38, 38, 0.2),
-            inset 0 1px 0 rgba(255,255,255,0.08);
-          text-shadow: 0 1px 3px rgba(0,0,0,0.5);
-        }
-        .btn-ghost-glass:hover {
-          background: rgba(220, 38, 38, 0.14);
-          border-color: rgba(239, 68, 68, 0.75);
-          color: #fff;
-          box-shadow:
-            0 0 24px rgba(220, 38, 38, 0.35),
-            inset 0 1px 0 rgba(255,255,255,0.12);
-        }
-      `}</style>
-
-      <div className="relative h-screen w-full overflow-hidden bg-gray-950 flex items-center justify-center">
+    <div className="relative h-screen w-full overflow-hidden bg-gray-950 flex items-center justify-center">
 
         {/* Layer 0 — Panning Grid */}
         <div
@@ -282,8 +193,8 @@ export default function SphereHero() {
           }}
         />
 
-        {/* Layer 6 — Hero Content */}
-        <div className="relative z-20 flex flex-col items-center text-center max-w-4xl mx-auto px-8 gap-7">
+        {/* Layer 6 — Hero Content (z-40 so it stays strictly above background fade) */}
+        <div className="relative z-40 flex flex-col items-center text-center max-w-4xl mx-auto px-8 gap-7">
 
           {/* Eyebrow badge */}
           <span
@@ -332,19 +243,25 @@ export default function SphereHero() {
             to intercept sophisticated forgeries and generate instant risk scores.
           </p>
 
-          {/* CTA Buttons */}
-          <div className="flex flex-wrap items-center justify-center gap-4 mt-1">
-            <a href="/home" className="btn-glass btn-primary-glass min-w-[190px] px-10">
+          {/* CTA Buttons - High Visibility Glass */}
+          <div className="flex flex-wrap items-center justify-center gap-5 mt-2 relative z-50">
+            <a
+              href="/home"
+              className="btn-glass btn-primary-glass min-w-[210px] w-56 sm:w-64 text-white font-extrabold text-base"
+            >
               Get Started
             </a>
 
-            <a href="/login" className="btn-glass btn-ghost-glass min-w-[190px] px-10">
+            <a
+              href="/login"
+              className="btn-glass btn-ghost-glass min-w-[210px] w-56 sm:w-64 text-white font-extrabold text-base"
+            >
               User Login
             </a>
           </div>
 
           {/* Fine-print */}
-          <p className="text-xs tracking-wide mt-1" style={{ color: "#6b7280" }}>
+          <p className="text-xs tracking-wide mt-2" style={{ color: "#9ca3af" }}>
             Files encrypted in transit &nbsp;·&nbsp; Auto-deleted post-analysis &nbsp;·&nbsp; SIH 2026 — Problem Statement #26188
           </p>
         </div>
@@ -358,7 +275,16 @@ export default function SphereHero() {
               "radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,0.82) 100%)",
           }}
         />
-      </div>
-    </>
+
+        {/* Bottom Atmospheric Fade to 100% Solid #030712 (z-10, strictly underneath content) */}
+        <div
+          className="absolute inset-x-0 bottom-0 h-80 pointer-events-none z-10"
+          aria-hidden="true"
+          style={{
+            background:
+              "linear-gradient(to bottom, transparent 0%, rgba(3, 7, 18, 0.3) 30%, rgba(3, 7, 18, 0.8) 70%, #030712 100%)",
+          }}
+        />
+    </div>
   );
 }

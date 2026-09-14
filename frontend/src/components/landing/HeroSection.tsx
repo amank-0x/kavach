@@ -1,10 +1,8 @@
 import SphereHero from "./HeroComponent";
-import Navbar from "./Navbar";
 
 export default function HeroSection() {
   return (
-    <div id="root-wrapper" className="app-root relative">
-      <Navbar />
+    <div id="root-wrapper" className="w-full max-w-none relative">
       <SphereHero />
     </div>
   );
