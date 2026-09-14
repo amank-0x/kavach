@@ -38,14 +38,19 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
 
-  const response = await fetch(url, {
-    ...options,
-    credentials: "include", // Required for receiving and sending httpOnly JWT cookies
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers || {}),
-    },
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      ...options,
+      credentials: "include", // Required for receiving and sending httpOnly JWT cookies
+      headers: {
+        "Content-Type": "application/json",
+        ...(options.headers || {}),
+      },
+    });
+  } catch {
+    throw new Error("Unable to reach the authentication service. Make sure the backend is running on port 3000.");
+  }
 
   let data: any;
   try {

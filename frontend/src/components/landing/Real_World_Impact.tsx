@@ -91,7 +91,7 @@ export default function Real_World_Impact() {
               ))}
             </div>
 
-            <div className="mt-4 flex flex-col gap-3 rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="mt-4 flex flex-col gap-3 rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-4 py-4 sm:flex-row sm:items-center sm:justify-between animate-pulse">
               <div className="flex items-center gap-3">
                 <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-400/15 text-emerald-300">
                   <CheckCircle2 className="h-5 w-5" aria-hidden="true" />

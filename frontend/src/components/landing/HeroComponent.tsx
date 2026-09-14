@@ -196,24 +196,6 @@ export default function SphereHero() {
         {/* Layer 6 — Hero Content (z-40 so it stays strictly above background fade) */}
         <div className="relative z-40 flex flex-col items-center text-center max-w-4xl mx-auto px-8 gap-7">
 
-          {/* Eyebrow badge */}
-          <span
-            className="inline-flex items-center gap-2.5 px-5 py-2 rounded-full text-sm font-semibold tracking-widest uppercase"
-            style={{
-              background: "rgba(220,38,38,0.12)",
-              border: "1.5px solid rgba(220,38,38,0.45)",
-              color: "#fca5a5",
-              backdropFilter: "blur(12px)",
-              letterSpacing: "0.1em",
-            }}
-          >
-            <span
-              className="badge-ping w-2 h-2 rounded-full flex-shrink-0"
-              style={{ background: "#ef4444", boxShadow: "0 0 8px #ef4444" }}
-            />
-            SIH26188 &bull; Team Kavach
-          </span>
-
           {/* Headline */}
           <h1
             className="text-5xl sm:text-6xl lg:text-7xl font-black leading-[1.08] tracking-tight text-white"

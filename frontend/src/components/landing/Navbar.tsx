@@ -1,7 +1,17 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 20);
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   const navLinks = [
     { name: "How It Works", href: "#problem" },
@@ -11,7 +21,11 @@ export default function Navbar() {
   ];
 
   return (
-    <header className="fixed w-full top-0 left-0 z-50 backdrop-blur-xl bg-gray-950/40 border-b border-red-500/20 shadow-[0_4px_30px_rgba(0,0,0,0.5)] px-8!">
+    <header className={`fixed w-full top-0 left-0 z-50 transition-all duration-300 px-8! ${
+      isScrolled 
+        ? 'backdrop-blur-xl bg-gray-950/40 border-b border-red-500/20 shadow-[0_4px_30px_rgba(0,0,0,0.5)]' 
+        : 'bg-transparent border-b-0 shadow-none'
+    }`}>
       <div className="w-full px-4 sm:px-6 lg:px-8 h-14 sm:h-16 grid grid-cols-[1fr_auto] md:grid-cols-[auto_1fr_auto] items-center gap-4">
         
         {/* Left Side: Brand Identity (No Icon) */}
@@ -77,7 +91,9 @@ export default function Navbar() {
 
       {/* Mobile Dropdown Menu */}
       {mobileMenuOpen && (
-        <div className="md:hidden px-6 pt-3 pb-5 border-t border-red-500/20 bg-gray-950/90 backdrop-blur-2xl flex flex-col gap-3">
+        <div className={`md:hidden px-6 pt-3 pb-5 border-t border-red-500/20 backdrop-blur-2xl flex flex-col gap-3 ${
+          isScrolled ? 'bg-gray-950/90' : 'bg-gray-950/95'
+        }`}>
           {navLinks.map((link) => (
             <a
               key={link.name}

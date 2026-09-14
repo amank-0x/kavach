@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useState, useId, useEffect } from "react";
-import { ArrowLeft, Eye, EyeOff } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, LoaderCircle } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { signin, signup, type SignInPayload, type SignUpPayload } from "../api/auth.api";
 
@@ -171,8 +171,11 @@ function SignInForm({ onSubmit, isSubmitting }: { onSubmit: (payload: SignInPayl
       </div>
       <div className="grid gap-4">
         <div className="grid gap-2"><Label htmlFor="email">Email</Label><Input id="email" name="email" type="email" placeholder="m@example.com" required autoComplete="email" /></div>
-        <PasswordInput name="password" label="Password" required autoComplete="current-password" placeholder="Password" />
-        <Button type="submit" variant="outline" className="mt-2" disabled={isSubmitting}>{isSubmitting ? "Signing in..." : "Sign In"}</Button>
+        <PasswordInput name="password" label="Password" required minLength={6} autoComplete="current-password" placeholder="At least 6 characters" />
+        <Button type="submit" variant="outline" className="mt-2" disabled={isSubmitting} aria-busy={isSubmitting}>
+          {isSubmitting && <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />}
+          {isSubmitting ? "Signing in..." : "Sign In"}
+        </Button>
       </div>
     </form>
   );
@@ -197,8 +200,11 @@ function SignUpForm({ onSubmit, isSubmitting }: { onSubmit: (payload: SignUpPayl
       <div className="grid gap-4">
         <div className="grid gap-1"><Label htmlFor="name">Full Name</Label><Input id="name" name="name" type="text" placeholder="John Doe" required autoComplete="name" /></div>
         <div className="grid gap-2"><Label htmlFor="email">Email</Label><Input id="email" name="email" type="email" placeholder="m@example.com" required autoComplete="email" /></div>
-        <PasswordInput name="password" label="Password" required autoComplete="new-password" placeholder="Password"/>
-        <Button type="submit" variant="outline" className="mt-2" disabled={isSubmitting}>{isSubmitting ? "Creating account..." : "Sign Up"}</Button>
+        <PasswordInput name="password" label="Password" required minLength={6} autoComplete="new-password" placeholder="At least 6 characters"/>
+        <Button type="submit" variant="outline" className="mt-2" disabled={isSubmitting} aria-busy={isSubmitting}>
+          {isSubmitting && <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />}
+          {isSubmitting ? "Creating account..." : "Sign Up"}
+        </Button>
       </div>
     </form>
   );
@@ -218,7 +224,9 @@ function AuthFormContainer({ isSignIn, onToggle }: { isSignIn: boolean; onToggle
           navigate("/home");
         }
       } catch (requestError) {
-        setError(requestError instanceof Error ? requestError.message : "Authentication failed. Please try again.");
+        setError(requestError instanceof Error && requestError.message !== "Failed to fetch"
+          ? requestError.message
+          : "Unable to reach the authentication service. Make sure the backend is running on port 3000.");
       } finally {
         setIsSubmitting(false);
       }

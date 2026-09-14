@@ -1,9 +1,14 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import LandingPage from './pages/LandingPage'
-import HomePage from './pages/HomePage'
 import AuthPage from './pages/AuthPage'
-//import ResultsPage from './pages/ResultsPage'
-//import SharedReportPage from './pages/SharedReportPage'
+import DashboardPage from './pages/DashboardPage'
+import ScanPage from './pages/ScanPage'
+import ReportPage from './pages/ReportPage'
+import SessionHistoryPage from './pages/SessionHistoryPage'
+import SettingsPage from './pages/SettingsPage'
+import ForensicsPage from './pages/ForensicsPage'
+import BatchProcessingPage from './pages/BatchProcessingPage'
+import CompliancePage from './pages/CompliancePage'
 
 function App() {
   return (
@@ -12,9 +17,15 @@ function App() {
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/auth" element={<AuthPage />} />
-          <Route path="/home" element={<HomePage />} />
-          {/*<Route path="/results/:id" element={<ResultsPage />} />*/}
-          {/*<Route path="/report/shared/:id" element={<SharedReportPage />} />*/}
+          <Route path="/home" element={<DashboardPage />} />
+          <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/dashboard/scan" element={<ScanPage />} />
+          <Route path="/dashboard/batch" element={<BatchProcessingPage />} />
+          <Route path="/dashboard/history" element={<SessionHistoryPage />} />
+          <Route path="/dashboard/forensics" element={<ForensicsPage />} />
+          <Route path="/dashboard/compliance" element={<CompliancePage />} />
+          <Route path="/dashboard/settings" element={<SettingsPage />} />
+          <Route path="/dashboard/report/:id" element={<ReportPage />} />
         </Routes>
       </div>
     </Router>
