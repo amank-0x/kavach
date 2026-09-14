@@ -6,7 +6,7 @@ export default function Navbar() {
   const navLinks = [
     { name: "How It Works", href: "#problem" },
     { name: "Technology", href: "#technology" },
-    { name: "Security", href: "#security" },
+    { name: "Security", href: "#impact" },
     { name: "About Kavach", href: "#about" },
   ];
 
