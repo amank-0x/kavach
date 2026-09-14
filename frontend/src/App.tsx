@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import LandingPage from './pages/LandingPage'
 import HomePage from './pages/HomePage'
+import AuthPage from './pages/AuthPage'
 //import ResultsPage from './pages/ResultsPage'
 //import SharedReportPage from './pages/SharedReportPage'
 
@@ -10,6 +11,7 @@ function App() {
       <div className="w-full max-w-none">
         <Routes>
           <Route path="/" element={<LandingPage />} />
+          <Route path="/auth" element={<AuthPage />} />
           <Route path="/home" element={<HomePage />} />
           {/*<Route path="/results/:id" element={<ResultsPage />} />*/}
           {/*<Route path="/report/shared/:id" element={<SharedReportPage />} />*/}

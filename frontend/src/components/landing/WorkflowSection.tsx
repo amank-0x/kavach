@@ -80,6 +80,7 @@ export default function WorkflowSection() {
   return (
     <section id="technology" className="relative overflow-hidden bg-[#030712] px-5 py-24 text-white sm:px-8 lg:px-12">
       <div className="pointer-events-none absolute inset-0 opacity-20" aria-hidden="true" style={{ backgroundImage: "linear-gradient(rgba(239,68,68,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(239,68,68,0.08) 1px, transparent 1px)", backgroundSize: "48px 48px" }} />
+      <div className="pointer-events-none absolute -left-24 top-1/3 h-96 w-96 rounded-full bg-red-600/15 blur-[120px]" aria-hidden="true" />
       <div className="relative mx-auto max-w-6xl">
         <div className="mx-auto max-w-3xl text-center">
           <p className="font-mono text-xs font-bold uppercase tracking-[0.24em] text-red-400">Verification pipeline</p>

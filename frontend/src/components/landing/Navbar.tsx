@@ -17,6 +17,7 @@ export default function Navbar() {
         {/* Left Side: Brand Identity (No Icon) */}
         <div className="flex min-w-0 items-center self-center gap-2.5">
           <a href="/" className="inline-flex items-center gap-1.5 group focus:outline-none">
+            <img src="/logo.png" alt="Kavach-AI logo" className="h-8 w-8 object-contain brightness-0 invert" />
             <span className="text-xl sm:text-2xl font-extrabold leading-none tracking-tight text-white group-hover:text-red-400 transition-colors">
               Kavach<span className="text-red-500">-AI</span>
             </span>
@@ -48,7 +49,7 @@ export default function Navbar() {
 
           {/* User access */}
           <a
-            href="/login"
+            href="/auth"
             className="inline-flex h-10 min-w-[132px] items-center justify-center rounded-lg px-8 text-sm font-bold leading-none text-white bg-red-600/90 hover:bg-red-500 border border-red-400/40 backdrop-blur-md transition-all duration-200 shadow-[0_0_20px_rgba(220,38,38,0.45)] hover:shadow-[0_0_28px_rgba(239,68,68,0.65)] active:scale-95"
           >
             User Login
@@ -96,7 +97,7 @@ export default function Navbar() {
               Get Started
             </a>
             <a
-              href="/login"
+              href="/auth"
               onClick={() => setMobileMenuOpen(false)}
               className="w-full text-center px-6 py-2.5 rounded-xl text-sm font-bold text-white bg-red-600"
             >

@@ -253,7 +253,7 @@ export default function SphereHero() {
             </a>
 
             <a
-              href="/login"
+              href="/auth"
               className="btn-glass btn-ghost-glass min-w-[210px] w-56 sm:w-64 text-white font-extrabold text-base"
             >
               User Login

@@ -1,3 +1,4 @@
+import Footer from '../components/landing/Footer'
 import HeroSection from '../components/landing/HeroSection'
 import Navbar from '../components/landing/Navbar'
 import ProblemSolveSection from '../components/landing/ProblemSolveSection'
@@ -13,6 +14,7 @@ function LandingPage() {
       <ProblemSolveSection />
       <WorkflowSection />
       <Real_World_Impact />
+      <Footer />
     </div>
   )
 }

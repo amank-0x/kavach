@@ -73,6 +73,7 @@ export default function ProblemSolveSection() {
       className="relative w-full min-w-full bg-[#030712] text-white py-24 sm:py-32 lg:py-36 overflow-hidden"
       style={{ width: "100%", minWidth: "100%", maxWidth: "100%" }}
     >
+      <div className="pointer-events-none absolute -left-24 top-1/3 h-96 w-96 rounded-full bg-red-600/15 blur-[120px]" aria-hidden="true" />
       {/* ─── Ambient Red Glows (Naturally emerging from dark base) ─── */}
       <div
         className="pointer-events-none absolute left-1/2 top-16 -translate-x-1/2 w-[950px] h-[450px] bg-[radial-gradient(ellipse_at_center,rgba(220,38,38,0.16)_0%,transparent_70%)] blur-3xl opacity-75 z-0"
