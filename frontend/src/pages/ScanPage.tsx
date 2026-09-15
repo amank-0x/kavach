@@ -520,8 +520,8 @@ export default function ScanPage() {
         </section>
         
         {running && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0b0f19]/85 p-6 backdrop-blur-md" role="status" aria-live="polite">
-            <div className="w-full max-w-md rounded-2xl border border-red-500/30 bg-[#171923]/95 p-8 text-center shadow-[0_0_60px_rgba(127,29,29,0.28)]">
+          <div className="fixed inset-0 top-0 left-0 right-0 bottom-0 z-[9999] flex h-screen h-[100dvh] w-screen min-h-screen w-full items-center justify-center bg-[#0b0f19]/95 p-6 backdrop-blur-xl" role="status" aria-live="polite">
+            <div className="w-full max-w-md rounded-2xl border border-red-500/40 bg-[#171923]/95 p-8 text-center shadow-[0_0_80px_rgba(220,38,38,0.35)]">
               <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-red-500/35 bg-red-500/10"><LoaderCircle className="h-8 w-8 animate-spin text-red-300" /></div>
               <h2 className="mt-5 text-xl font-bold text-white">Screening document...</h2>
               <p className="mt-2 text-sm leading-6 text-slate-400">Sending both captures to the local verification service and preparing your report.</p>
