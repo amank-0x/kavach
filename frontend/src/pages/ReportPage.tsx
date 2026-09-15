@@ -143,7 +143,6 @@ const demoReports: Record<string, DemoReport> = {
     fontConsistency: 98.1,
     reason: "Document integrity signals require manual review.",
     screeningResult: sampleTalwinderResult,
-    documentImageUrl: "/fake.png",
   },
   "KAV-84920": {
     reference: "KAV-84920",
@@ -167,7 +166,6 @@ const demoReports: Record<string, DemoReport> = {
     authenticityConfidence: 94.2,
     fontConsistency: 98.1,
     reason: "No document-integrity anomalies detected.",
-    documentImageUrl: "/fake.png",
   },
   "KAV-84911": {
     reference: "KAV-84911",
@@ -191,7 +189,6 @@ const demoReports: Record<string, DemoReport> = {
     authenticityConfidence: 61,
     fontConsistency: 91.4,
     reason: "One or more document-integrity signals need review.",
-    documentImageUrl: "/fake.png",
   },
   "KAV-84876": {
     reference: "KAV-84876",
@@ -215,7 +212,6 @@ const demoReports: Record<string, DemoReport> = {
     authenticityConfidence: 89,
     fontConsistency: 96.7,
     reason: "No document-integrity anomalies detected.",
-    documentImageUrl: "/fake.png",
   },
 };
 
@@ -244,6 +240,12 @@ export default function ReportPage() {
   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
   const [modalImageSrc, setModalImageSrc] = useState<string>("");
   const [modalImageTitle, setModalImageTitle] = useState<string>("");
+
+  const openModal = (src: string, title: string) => {
+    setModalImageSrc(src);
+    setModalImageTitle(title);
+    setIsImageModalOpen(true);
+  };
 
   useEffect(() => {
     let storedReport: ReportRecord | null = null;
@@ -318,14 +320,11 @@ export default function ReportPage() {
   const faceData = screeningResult?.face_verification;
   const overallData = screeningResult?.overall;
 
-  const documentImageToDisplay = report.documentImageUrl || "/fake.png";
+  const documentImageToDisplay = report.documentImageUrl || null;
+  const hasDocumentImage = Boolean(
+    documentImageToDisplay && documentImageToDisplay !== "/fake.png" && documentImageToDisplay.trim().length > 0
+  );
   const livePhotoToDisplay = report.livePhotoUrl || null;
-
-  const openModal = (src: string, title: string) => {
-    setModalImageSrc(src);
-    setModalImageTitle(title);
-    setIsImageModalOpen(true);
-  };
 
   if (loading) {
     return (
@@ -420,40 +419,74 @@ export default function ReportPage() {
 
         {/* High Resolution Uploaded Document & Face Verification Row */}
         <div className="mb-8 grid gap-8 lg:grid-cols-2">
-          {/* Uploaded Document Image Card */}
+          {/* Uploaded Document Image / Status Card */}
           <section className="flex flex-col justify-between rounded-2xl border border-red-500/15 bg-white/[0.035] p-6 shadow-[0_20px_55px_rgba(90,12,28,0.14)] backdrop-blur-xl">
             <div>
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
                   <FileSearch className="h-5 w-5 text-red-300" />
                   <div>
-                    <h2 className="font-bold text-white">Uploaded Document Image</h2>
+                    <h2 className="font-bold text-white">
+                      {hasDocumentImage ? "Uploaded Document Image" : "Document Verification Status"}
+                    </h2>
                     <p className="mt-0.5 text-xs text-slate-500">
-                      High-resolution staging & OCR source
+                      {hasDocumentImage ? "High-resolution staging & OCR source" : "Analysis result for uploaded document"}
                     </p>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => openModal(documentImageToDisplay, "Uploaded Document Scan")}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900/80 px-2.5 py-1 text-xs text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
-                >
-                  <Maximize2 className="h-3.5 w-3.5" /> High-Res View
-                </button>
+                {hasDocumentImage && (
+                  <button
+                    type="button"
+                    onClick={() => openModal(documentImageToDisplay!, "Uploaded Document Scan")}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900/80 px-2.5 py-1 text-xs text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
+                  >
+                    <Maximize2 className="h-3.5 w-3.5" /> High-Res View
+                  </button>
+                )}
               </div>
 
               <div className="mt-5 relative overflow-hidden rounded-xl border border-slate-800 bg-black/80">
                 <div className="flex h-64 sm:h-72 items-center justify-center p-3">
-                  <img
-                    src={documentImageToDisplay}
-                    alt="Uploaded document image"
-                    className="max-h-full max-w-full object-contain cursor-pointer transition-transform hover:scale-[1.01]"
-                    onClick={() => openModal(documentImageToDisplay, "Uploaded Document Scan")}
-                  />
+                  {hasDocumentImage ? (
+                    <img
+                      src={documentImageToDisplay!}
+                      alt="Uploaded document image"
+                      className="max-h-full max-w-full object-contain cursor-pointer transition-transform hover:scale-[1.01]"
+                      onClick={() => openModal(documentImageToDisplay!, "Uploaded Document Scan")}
+                    />
+                  ) : (
+                    <div
+                      className={`flex flex-col items-center justify-center h-full w-full rounded-lg ${
+                        passed
+                          ? "border-emerald-500/30 bg-emerald-500/10"
+                          : "border-red-500/30 bg-red-500/10"
+                      }`}
+                    >
+                      {passed ? (
+                        <CheckCircle2 className="h-16 w-16 text-emerald-400 mb-4" />
+                      ) : (
+                        <AlertTriangle className="h-16 w-16 text-red-400 mb-4" />
+                      )}
+                      <p
+                        className={`text-2xl font-bold ${
+                          passed ? "text-emerald-300" : "text-red-300"
+                        }`}
+                      >
+                        {passed ? "ORIGINAL DOCUMENT" : "FAKE DOCUMENT"}
+                      </p>
+                      <p className="text-sm text-slate-400 mt-2">
+                        {report.riskLevel}
+                      </p>
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center justify-between border-t border-slate-800 bg-slate-950/80 px-4 py-2 text-xs text-slate-400">
-                  <span className="truncate font-mono">Document Image • Active Forensic Overlay</span>
-                  <span className="text-emerald-400 font-semibold">STAGED</span>
+                  <span className="truncate font-mono">
+                    {hasDocumentImage ? "Document Image • Active Forensic Overlay" : "Document Verification Status"}
+                  </span>
+                  <span className={passed ? "text-emerald-400 font-semibold" : "text-red-400 font-semibold"}>
+                    {passed ? (hasDocumentImage ? "STAGED" : "VERIFIED") : "FLAGGED"}
+                  </span>
                 </div>
               </div>
             </div>
@@ -517,15 +550,9 @@ export default function ReportPage() {
                 </div>
               </div>
 
-              {/* Live Photo vs Document Face Preview if live photo exists */}
+              {/* Live Photo Preview if live photo exists */}
               {livePhotoToDisplay && (
-                <div className="mt-4 grid grid-cols-2 gap-3">
-                  <div className="rounded-xl border border-slate-800 bg-black/60 p-2 text-center">
-                    <p className="text-[10px] uppercase font-mono text-slate-400 mb-1.5">Document Face</p>
-                    <div className="h-28 flex items-center justify-center overflow-hidden rounded-lg bg-slate-900">
-                      <img src={documentImageToDisplay} alt="Document Face" className="h-full w-full object-cover" />
-                    </div>
-                  </div>
+                <div className="mt-4">
                   <div className="rounded-xl border border-slate-800 bg-black/60 p-2 text-center">
                     <p className="text-[10px] uppercase font-mono text-slate-400 mb-1.5">Live Capture</p>
                     <div className="h-28 flex items-center justify-center overflow-hidden rounded-lg bg-slate-900">
@@ -534,6 +561,22 @@ export default function ReportPage() {
                   </div>
                 </div>
               )}
+
+              {/* Document Status Summary */}
+              <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  {passed ? (
+                    <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                  ) : (
+                    <AlertTriangle className="h-4 w-4 text-red-400" />
+                  )}
+                  <p className="text-xs font-bold uppercase tracking-wider text-white">Document Status</p>
+                </div>
+                <p className={`text-sm font-semibold ${passed ? "text-emerald-300" : "text-red-300"}`}>
+                  {passed ? "CORRECT DOCUMENT" : "FAKE DOCUMENT"}
+                </p>
+                <p className="text-xs text-slate-400 mt-1">{report.riskLevel}</p>
+              </div>
 
               {/* Face Details Grid */}
               <div className="mt-4 grid gap-3 sm:grid-cols-2">

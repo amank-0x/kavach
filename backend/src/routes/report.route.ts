@@ -10,7 +10,7 @@ const upload = multer({
     limits: { fileSize: 25 * 1024 * 1024, files: 2 },
 });
 
-const screeningApiUrl = process.env.SCREENING_API_URL || "http://10.238.173.96:8000/screen-document";
+const screeningApiUrl = process.env.SCREENING_API_URL || "http://192.168.220.96:8000/screen-document";
 
 type ScreeningResponse = {
     ocr_validation?: {
@@ -32,34 +32,62 @@ const asString = (value: unknown) => typeof value === "string" && value.trim() ?
 const asNumber = (value: unknown) => typeof value === "number" && Number.isFinite(value) ? value : undefined;
 const routeParam = (value: string | string[] | undefined) => Array.isArray(value) ? value[0] : value;
 
-const serializeReport = (report: any) => ({
-    id: report.id,
-    reportReference: report.reportReference,
-    status: report.status,
-    documentType: report.document?.documentType,
-    overallRiskScore: report.overallRiskScore?.toNumber?.() ?? report.overallRiskScore,
-    verdict: report.verdict,
-    riskLevel: report.riskLevel,
-    fullName: report.fullName,
-    dateOfBirth: report.dateOfBirth,
-    identifier: report.identifier,
-    mrzChecksumValid: report.mrzChecksumValid,
-    authenticityConfidence: report.authenticityConfidence?.toNumber?.() ?? report.authenticityConfidence,
-    tamperedProbability: report.tamperedProbability?.toNumber?.() ?? report.tamperedProbability,
-    tamperDecision: report.tamperDecision,
-    elaVariance: report.elaVariance?.toNumber?.() ?? report.elaVariance,
-    edgeResponse: report.edgeResponse?.toNumber?.() ?? report.edgeResponse,
-    noiseTexture: report.noiseTexture?.toNumber?.() ?? report.noiseTexture,
-    sharpness: report.sharpness?.toNumber?.() ?? report.sharpness,
-    fontConsistency: report.fontConsistency?.toNumber?.() ?? report.fontConsistency,
-    consentGranted: report.consentGranted,
-    consentedAt: report.consentedAt,
-    createdAt: report.createdAt,
-});
+const serializeReport = (report: any) => {
+    let screeningResult: any = undefined;
+    let documentImageUrl: string | undefined = undefined;
+    let livePhotoUrl: string | undefined = undefined;
+    let tamperDecision = report.tamperDecision;
+
+    if (report.tamperDecision && typeof report.tamperDecision === "string" && report.tamperDecision.startsWith("{")) {
+        try {
+            const parsed = JSON.parse(report.tamperDecision);
+            tamperDecision = parsed.decision || parsed.tamperDecision || report.tamperDecision;
+            screeningResult = parsed.screeningResult;
+            documentImageUrl = parsed.documentImageUrl;
+            livePhotoUrl = parsed.livePhotoUrl;
+        } catch {
+            tamperDecision = report.tamperDecision;
+        }
+    }
+
+    return {
+        id: report.id,
+        reportReference: report.reportReference,
+        status: report.status,
+        documentType: report.document?.documentType,
+        overallRiskScore: report.overallRiskScore?.toNumber?.() ?? report.overallRiskScore,
+        verdict: report.verdict,
+        riskLevel: report.riskLevel,
+        fullName: report.fullName,
+        dateOfBirth: report.dateOfBirth,
+        identifier: report.identifier,
+        mrzChecksumValid: report.mrzChecksumValid,
+        authenticityConfidence: report.authenticityConfidence?.toNumber?.() ?? report.authenticityConfidence,
+        tamperedProbability: report.tamperedProbability?.toNumber?.() ?? report.tamperedProbability,
+        tamperDecision,
+        elaVariance: report.elaVariance?.toNumber?.() ?? report.elaVariance,
+        edgeResponse: report.edgeResponse?.toNumber?.() ?? report.edgeResponse,
+        noiseTexture: report.noiseTexture?.toNumber?.() ?? report.noiseTexture,
+        sharpness: report.sharpness?.toNumber?.() ?? report.sharpness,
+        fontConsistency: report.fontConsistency?.toNumber?.() ?? report.fontConsistency,
+        consentGranted: report.consentGranted,
+        consentedAt: report.consentedAt,
+        createdAt: report.createdAt,
+        screeningResult,
+        documentImageUrl,
+        livePhotoUrl,
+    };
+};
 
 const reportInclude = { document: { select: { documentType: true } } } as const;
 
-async function createStoredReport(userId: string, documentType: string, screeningResult: ScreeningResponse, requestedReference?: string) {
+async function createStoredReport(
+    userId: string,
+    documentType: string,
+    screeningResult: ScreeningResponse,
+    requestedReference?: string,
+    images?: { documentImageUrl?: string | undefined; livePhotoUrl?: string | undefined },
+) {
     const visual = screeningResult.ocr_validation?.visual || {};
     const mrz = screeningResult.ocr_validation?.mrz || {};
     const tamper = screeningResult.tamper_detection || {};
@@ -75,6 +103,15 @@ async function createStoredReport(userId: string, documentType: string, screenin
     const reportReference = requestedReference?.match(/^KAV-[A-Z0-9-]+$/)
         ? requestedReference
         : `KAV-${randomUUID().slice(0, 8).toUpperCase()}`;
+
+    const rawDecision = asString(tamper.decision);
+    const tamperDecisionPayload = JSON.stringify({
+        decision: rawDecision,
+        screeningResult,
+        documentImageUrl: images?.documentImageUrl,
+        livePhotoUrl: images?.livePhotoUrl,
+    });
+
     const document = await prismaClient.document.create({ data: { userId, documentType } });
 
     try {
@@ -93,7 +130,7 @@ async function createStoredReport(userId: string, documentType: string, screenin
                 mrzChecksumValid: mrzChecksumValid ?? null,
                 authenticityConfidence: tamperedProbability === undefined ? null : 100 - tamperedProbability,
                 tamperedProbability: tamperedProbability ?? null,
-                tamperDecision: asString(tamper.decision) ?? null,
+                tamperDecision: tamperDecisionPayload,
                 elaVariance: asNumber(features.ela) ?? null,
                 edgeResponse: asNumber(features.edge) ?? null,
                 noiseTexture: asNumber(features.noise_texture) ?? null,
@@ -179,6 +216,9 @@ reportRouter.post("/from-screening", authMiddleware, async (req, res) => {
     const documentType = String(req.body.documentType || "PASSPORT").toUpperCase();
     const screeningResult = req.body.screeningResult as ScreeningResponse | undefined;
     const reportReference = typeof req.body.reportReference === "string" ? req.body.reportReference : undefined;
+    const documentImageUrl = typeof req.body.documentImageUrl === "string" ? req.body.documentImageUrl : undefined;
+    const livePhotoUrl = typeof req.body.livePhotoUrl === "string" ? req.body.livePhotoUrl : undefined;
+
     if (req.body.consentGranted !== true) {
         return res.status(400).json({ message: "Consent is required before screening" });
     }
@@ -190,7 +230,10 @@ reportRouter.post("/from-screening", authMiddleware, async (req, res) => {
     }
 
     try {
-        const report = await createStoredReport(userId, documentType, screeningResult, reportReference);
+        const report = await createStoredReport(userId, documentType, screeningResult, reportReference, {
+            documentImageUrl,
+            livePhotoUrl,
+        });
         return res.status(201).json({ report: serializeReport(report) });
     } catch (error) {
         console.error("Error saving screening report:", error);
@@ -235,7 +278,13 @@ reportRouter.post(
                 return res.status(502).json({ message: "Document screening service failed", details: screeningResult });
             }
 
-            const report = await createStoredReport(userId, documentType, screeningResult);
+            const documentImageUrl = documentImage ? `data:${documentImage.mimetype};base64,${documentImage.buffer.toString("base64")}` : undefined;
+            const livePhotoUrl = liveImage ? `data:${liveImage.mimetype};base64,${liveImage.buffer.toString("base64")}` : undefined;
+
+            const report = await createStoredReport(userId, documentType, screeningResult, undefined, {
+                documentImageUrl,
+                livePhotoUrl,
+            });
 
             return res.status(201).json({ report: serializeReport(report) });
         } catch (error) {

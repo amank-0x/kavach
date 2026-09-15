@@ -117,7 +117,7 @@ export interface ReportRecord {
 }
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
-const SCREENING_API_URL = import.meta.env.VITE_SCREENING_API_URL || "http://10.238.173.96:8000/screen-document";
+const SCREENING_API_URL = import.meta.env.VITE_SCREENING_API_URL || "http://192.168.220.96:8000/screen-document";
 
 const numericValue = (value: unknown) => typeof value === "number" && Number.isFinite(value) ? value : null;
 const textValue = (value: unknown) => typeof value === "string" && value.trim() ? value.trim() : null;
@@ -125,7 +125,7 @@ const textValue = (value: unknown) => typeof value === "string" && value.trim() 
 export function screeningResultToReport(
   result: ScreeningResult,
   reportReference: string,
-  options?: { documentImageUrl?: string; livePhotoUrl?: string }
+  options?: { documentImageUrl?: string | undefined; livePhotoUrl?: string | undefined }
 ): ReportRecord {
   const visual = result.ocr_validation?.visual || {};
   const mrz = result.ocr_validation?.mrz || {};
@@ -207,8 +207,8 @@ export async function createReport(input: {
   livePhoto: File;
   documentType: string;
   consentGranted: boolean;
-  documentImageUrl?: string;
-  livePhotoUrl?: string;
+  documentImageUrl?: string | undefined;
+  livePhotoUrl?: string | undefined;
 }): Promise<{ report: ReportRecord; persistence: Promise<{ report: ReportRecord }> }> {
   const screeningFormData = new FormData();
   screeningFormData.append("doc_image", input.document);
@@ -234,6 +234,8 @@ export async function createReport(input: {
       consentGranted: input.consentGranted,
       reportReference,
       screeningResult,
+      documentImageUrl: input.documentImageUrl,
+      livePhotoUrl: input.livePhotoUrl,
     }),
   }).then((response) => parseResponse<{ report: ReportRecord }>(response));
 

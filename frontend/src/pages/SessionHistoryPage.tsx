@@ -1,8 +1,8 @@
-import { ArrowUpRight, FileCheck2, Filter, LoaderCircle, Plus } from "lucide-react";
+import { ArrowUpRight, FileCheck2, Filter, LoaderCircle, Plus, Trash2 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { getCurrentUser, logout, type User } from "../api/auth.api";
-import { getReports, type ReportRecord } from "../api/report.api";
+import { deleteReport, getReports, type ReportRecord } from "../api/report.api";
 import HomeHeader from "../components/home/HomeHeader";
 import HomeSidebar from "../components/home/HomeSidebar";
 
@@ -37,6 +37,17 @@ export default function SessionHistoryPage() {
 
   const handleLogout = async () => { try { await logout(); } finally { navigate("/auth"); } };
 
+  const handleDeleteReport = async (reportId: string) => {
+    if (!confirm("Are you sure you want to delete this report?")) return;
+    try {
+      await deleteReport(reportId);
+      setScans(scans.filter((scan) => scan.id !== reportId));
+    } catch (error) {
+      console.error("Failed to delete report:", error);
+      alert("Failed to delete report. Please try again.");
+    }
+  };
+
   if (loading) return <div className="flex min-h-screen items-center justify-center bg-[#0b0f19] text-red-300"><LoaderCircle className="h-6 w-6 animate-spin" aria-label="Loading session history" /></div>;
 
   return (
@@ -63,7 +74,7 @@ export default function SessionHistoryPage() {
 
           <section className="overflow-hidden rounded-2xl border border-red-500/15 bg-white/[0.035] shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_22px_60px_rgba(90,12,28,0.2)] backdrop-blur-xl">
             <div className="flex items-center justify-between border-b border-slate-800/80 px-6 py-5"><div><h2 className="font-bold text-white">All scanned documents</h2><p className="mt-1 text-xs text-slate-500">Immutable verification records from your local workspace</p></div><button type="button" className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.035] px-3 py-2 text-xs font-semibold text-slate-400 transition-colors hover:border-red-500/40 hover:text-red-300"><Filter className="h-3.5 w-3.5" /> Filter</button></div>
-            <div className="overflow-x-auto"><table className="w-full min-w-[720px] text-left"><thead className="border-b border-slate-800 bg-slate-950/50 font-mono text-xs uppercase tracking-wider text-slate-500"><tr><th className="px-6 py-4 font-medium">Scan ID</th><th className="px-6 py-4 font-medium">Document type</th><th className="px-6 py-4 font-medium">Timestamp</th><th className="px-6 py-4 font-medium">Integrity score</th><th className="px-6 py-4 font-medium">Verdict</th><th className="px-6 py-4 font-medium">Action</th></tr></thead><tbody className="divide-y divide-slate-800/70">{scans.length ? scans.map((scan) => <tr key={scan.id} className="transition-colors hover:bg-white/[0.025]"><td className="px-6 py-5 font-mono text-sm text-slate-300">{scan.id}</td><td className="px-6 py-5"><span className="rounded-md border border-red-500/20 bg-red-500/10 px-2.5 py-1 text-xs text-red-300">{scan.type}</span></td><td className="px-6 py-5 text-sm text-slate-500">{scan.time}</td><td className="px-6 py-5 font-mono text-sm text-slate-300">{scan.score} <span className="text-slate-600">match</span></td><td className="px-6 py-5"><span className={`rounded-full border px-2.5 py-1 font-mono text-xs ${scan.verdict === "Passed" ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-300" : "border-red-500/20 bg-red-500/10 text-red-300"}`}>{scan.verdict}</span></td><td className="px-6 py-5"><Link to={`/dashboard/report/${scan.report}`} className="inline-flex items-center gap-1 text-sm font-semibold text-red-300 hover:text-red-200">View report <ArrowUpRight className="h-3.5 w-3.5" /></Link></td></tr>) : <tr><td colSpan={6} className="px-6 py-12 text-center text-sm text-slate-500">No scanned documents yet. Start a verification to create your first report.</td></tr>}</tbody></table></div>
+            <div className="overflow-x-auto"><table className="w-full min-w-[720px] text-left"><thead className="border-b border-slate-800 bg-slate-950/50 font-mono text-xs uppercase tracking-wider text-slate-500"><tr><th className="px-6 py-4 font-medium">Scan ID</th><th className="px-6 py-4 font-medium">Document type</th><th className="px-6 py-4 font-medium">Timestamp</th><th className="px-6 py-4 font-medium">Integrity score</th><th className="px-6 py-4 font-medium">Verdict</th><th className="px-6 py-4 font-medium">Action</th></tr></thead><tbody className="divide-y divide-slate-800/70">{scans.length ? scans.map((scan) => <tr key={scan.id} className="transition-colors hover:bg-white/[0.025]"><td className="px-6 py-5 font-mono text-sm text-slate-300">{scan.id}</td><td className="px-6 py-5"><span className="rounded-md border border-red-500/20 bg-red-500/10 px-2.5 py-1 text-xs text-red-300">{scan.type}</span></td><td className="px-6 py-5 text-sm text-slate-500">{scan.time}</td><td className="px-6 py-5 font-mono text-sm text-slate-300">{scan.score} <span className="text-slate-600">match</span></td><td className="px-6 py-5"><span className={`rounded-full border px-2.5 py-1 font-mono text-xs ${scan.verdict === "Passed" ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-300" : "border-red-500/20 bg-red-500/10 text-red-300"}`}>{scan.verdict}</span></td><td className="px-6 py-5"><div className="flex items-center gap-3"><Link to={`/dashboard/report/${scan.report}`} className="inline-flex items-center gap-1 text-sm font-semibold text-red-300 hover:text-red-200">View report <ArrowUpRight className="h-3.5 w-3.5" /></Link><button onClick={() => handleDeleteReport(scan.id)} className="inline-flex items-center gap-1 text-sm font-semibold text-slate-400 hover:text-red-400 transition-colors" title="Delete report"><Trash2 className="h-3.5 w-3.5" /></button></div></td></tr>) : <tr><td colSpan={6} className="px-6 py-12 text-center text-sm text-slate-500">No scanned documents yet. Start a verification to create your first report.</td></tr>}</tbody></table></div>
           </section>
         </div>
       </main>

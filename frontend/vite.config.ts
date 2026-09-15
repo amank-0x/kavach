@@ -2,7 +2,7 @@ import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 import tailwindcss from '@tailwindcss/vite'
 
-const screeningApiUrl = process.env.VITE_SCREENING_API_URL || 'http://10.238.173.96:8000/screen-document'
+const screeningApiUrl = process.env.VITE_SCREENING_API_URL || 'http://192.168.220.96:8000/screen-document'
 
 // https://vite.dev/config/
 export default defineConfig({
