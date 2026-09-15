@@ -17,6 +17,12 @@ type ScreeningResponse = {
         visual?: Record<string, unknown>;
         mrz?: Record<string, unknown>;
     };
+    aadhaar_validation?: {
+        fields?: Record<string, unknown>;
+        number_validation?: Record<string, unknown>;
+        qr_data?: unknown;
+        ocr_issues?: unknown[];
+    };
     tamper_detection?: {
         tampered_probability?: unknown;
         decision?: unknown;
@@ -25,6 +31,7 @@ type ScreeningResponse = {
     overall?: {
         overall_risk_score?: unknown;
         risk_level?: unknown;
+        reasons?: unknown[];
     };
 };
 
@@ -90,6 +97,8 @@ async function createStoredReport(
 ) {
     const visual = screeningResult.ocr_validation?.visual || {};
     const mrz = screeningResult.ocr_validation?.mrz || {};
+    const aadhaar = screeningResult.aadhaar_validation || {};
+    const aadhaarFields = (aadhaar.fields || {}) as Record<string, unknown>;
     const tamper = screeningResult.tamper_detection || {};
     const features = tamper.features || {};
     const overall = screeningResult.overall || {};
@@ -98,7 +107,7 @@ async function createStoredReport(
     const mrzChecks = mrz.checksum_valid;
     const mrzChecksumValid = typeof mrzChecks === "object" && mrzChecks !== null
         ? Object.values(mrzChecks as Record<string, unknown>).every((value) => value === true)
-        : undefined;
+        : (typeof aadhaar.number_validation?.valid === "boolean" ? aadhaar.number_validation.valid : undefined);
     const verdict = overallRiskScore !== undefined && overallRiskScore < 30 && (tamperedProbability === undefined || tamperedProbability < 20) ? "Passed" : "Flagged";
     const reportReference = requestedReference?.match(/^KAV-[A-Z0-9-]+$/)
         ? requestedReference
@@ -112,7 +121,10 @@ async function createStoredReport(
         livePhotoUrl: images?.livePhotoUrl,
     });
 
-    const document = await prismaClient.document.create({ data: { userId, documentType } });
+    const normalizedDocType = documentType.toUpperCase();
+    const storedDocType = (normalizedDocType === "ADHAR" || normalizedDocType === "AADHAAR" || normalizedDocType.includes("ADHAAR") || normalizedDocType.includes("AADHAAR")) ? "Adhar" : documentType;
+
+    const document = await prismaClient.document.create({ data: { userId, documentType: storedDocType } });
 
     try {
         return await prismaClient.documentReport.create({
@@ -124,9 +136,9 @@ async function createStoredReport(
                 overallRiskScore: overallRiskScore ?? null,
                 verdict,
                 riskLevel: asString(overall.risk_level) ?? null,
-                fullName: asString(visual.name) || asString(mrz.name_mrz) || null,
-                dateOfBirth: asString(visual.date_of_birth) || asString(mrz.dob_mrz) || null,
-                identifier: asString(visual.passport_number) || asString(mrz.passport_number_mrz) || null,
+                fullName: asString(visual.name) || asString(mrz.name_mrz) || asString(aadhaarFields.name) || null,
+                dateOfBirth: asString(visual.date_of_birth) || asString(mrz.dob_mrz) || asString(aadhaarFields.dob) || null,
+                identifier: asString(visual.passport_number) || asString(mrz.passport_number_mrz) || asString(aadhaarFields.aadhaar_number) || null,
                 mrzChecksumValid: mrzChecksumValid ?? null,
                 authenticityConfidence: tamperedProbability === undefined ? null : 100 - tamperedProbability,
                 tamperedProbability: tamperedProbability ?? null,
@@ -213,7 +225,11 @@ reportRouter.post("/from-screening", authMiddleware, async (req, res) => {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
-    const documentType = String(req.body.documentType || "PASSPORT").toUpperCase();
+    const rawDocumentType = String(req.body.documentType || "PASSPORT");
+    const normalizedType = rawDocumentType.toUpperCase();
+    const isAadhaar = normalizedType === "ADHAR" || normalizedType === "AADHAAR" || normalizedType.includes("ADHAAR") || normalizedType.includes("AADHAAR");
+    const isPassport = normalizedType === "PASSPORT";
+
     const screeningResult = req.body.screeningResult as ScreeningResponse | undefined;
     const reportReference = typeof req.body.reportReference === "string" ? req.body.reportReference : undefined;
     const documentImageUrl = typeof req.body.documentImageUrl === "string" ? req.body.documentImageUrl : undefined;
@@ -222,15 +238,16 @@ reportRouter.post("/from-screening", authMiddleware, async (req, res) => {
     if (req.body.consentGranted !== true) {
         return res.status(400).json({ message: "Consent is required before screening" });
     }
-    if (documentType !== "PASSPORT") {
-        return res.status(400).json({ message: "Only passport screening is currently supported" });
+    if (!isPassport && !isAadhaar) {
+        return res.status(400).json({ message: "Only passport and Aadhaar screening are currently supported" });
     }
     if (!screeningResult || typeof screeningResult !== "object" || Array.isArray(screeningResult)) {
         return res.status(400).json({ message: "A valid screening result is required" });
     }
 
     try {
-        const report = await createStoredReport(userId, documentType, screeningResult, reportReference, {
+        const storedDocType = isAadhaar ? "Adhar" : "PASSPORT";
+        const report = await createStoredReport(userId, storedDocType, screeningResult, reportReference, {
             documentImageUrl,
             livePhotoUrl,
         });
@@ -262,9 +279,13 @@ reportRouter.post(
         if (req.body.consent_granted !== "true") {
             return res.status(400).json({ message: "Consent is required before screening" });
         }
-        const documentType = String(req.body.document_type || "PASSPORT").toUpperCase();
-        if (documentType !== "PASSPORT") {
-            return res.status(400).json({ message: "Only passport screening is currently supported" });
+        const rawDocumentType = String(req.body.document_type || req.body.documentType || "PASSPORT");
+        const normalizedType = rawDocumentType.toUpperCase();
+        const isAadhaar = normalizedType === "ADHAR" || normalizedType === "AADHAAR" || normalizedType.includes("ADHAAR") || normalizedType.includes("AADHAAR");
+        const isPassport = normalizedType === "PASSPORT";
+
+        if (!isPassport && !isAadhaar) {
+            return res.status(400).json({ message: "Only passport and Aadhaar screening are currently supported" });
         }
 
         try {
@@ -272,7 +293,11 @@ reportRouter.post(
             formData.append("doc_image", new Blob([new Uint8Array(documentImage.buffer).buffer as ArrayBuffer], { type: documentImage.mimetype }), documentImage.originalname);
             formData.append("live_image", new Blob([new Uint8Array(liveImage.buffer).buffer as ArrayBuffer], { type: liveImage.mimetype }), liveImage.originalname);
 
-            const screeningResponse = await fetch(screeningApiUrl, { method: "POST", body: formData });
+            const targetUrl = isAadhaar
+                ? (process.env.SCREENING_AADHAAR_API_URL || screeningApiUrl.replace(/\/screen-document\/?$/, "/screen-aadhaar"))
+                : screeningApiUrl;
+
+            const screeningResponse = await fetch(targetUrl, { method: "POST", body: formData });
             const screeningResult = await screeningResponse.json() as ScreeningResponse;
             if (!screeningResponse.ok) {
                 return res.status(502).json({ message: "Document screening service failed", details: screeningResult });
@@ -281,7 +306,8 @@ reportRouter.post(
             const documentImageUrl = documentImage ? `data:${documentImage.mimetype};base64,${documentImage.buffer.toString("base64")}` : undefined;
             const livePhotoUrl = liveImage ? `data:${liveImage.mimetype};base64,${liveImage.buffer.toString("base64")}` : undefined;
 
-            const report = await createStoredReport(userId, documentType, screeningResult, undefined, {
+            const storedDocType = isAadhaar ? "Adhar" : "PASSPORT";
+            const report = await createStoredReport(userId, storedDocType, screeningResult, undefined, {
                 documentImageUrl,
                 livePhotoUrl,
             });

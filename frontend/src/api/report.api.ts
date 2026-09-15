@@ -79,8 +79,31 @@ export interface OverallData {
   reasons?: string[];
 }
 
+export interface AadhaarFieldsData {
+  aadhaar_number?: string;
+  dob?: string;
+  gender?: string;
+  name?: string;
+  [key: string]: unknown;
+}
+
+export interface AadhaarNumberValidation {
+  valid?: boolean;
+  reason?: string | null;
+  [key: string]: unknown;
+}
+
+export interface AadhaarValidationData {
+  fields?: AadhaarFieldsData;
+  number_validation?: AadhaarNumberValidation;
+  qr_data?: string | null | Record<string, unknown>;
+  ocr_issues?: string[];
+  [key: string]: unknown;
+}
+
 export type ScreeningResult = {
   ocr_validation?: OcrValidationData;
+  aadhaar_validation?: AadhaarValidationData;
   tamper_detection?: TamperDetectionData;
   face_verification?: FaceVerificationData;
   overall?: OverallData;
@@ -122,13 +145,32 @@ const SCREENING_API_URL = import.meta.env.VITE_SCREENING_API_URL || "http://192.
 const numericValue = (value: unknown) => typeof value === "number" && Number.isFinite(value) ? value : null;
 const textValue = (value: unknown) => typeof value === "string" && value.trim() ? value.trim() : null;
 
+export function getScreeningUrl(documentType: string): string {
+  const isAadhaar = documentType.toLowerCase().includes("aadhaar") || documentType.toLowerCase().includes("adhar");
+  if (isAadhaar) {
+    if (SCREENING_API_URL.includes("/screen-document")) {
+      return SCREENING_API_URL.replace("/screen-document", "/screen-aadhaar");
+    }
+    try {
+      const url = new URL(SCREENING_API_URL);
+      url.pathname = "/screen-aadhaar";
+      return url.toString();
+    } catch {
+      return SCREENING_API_URL.replace(/\/[^/]*$/, "/screen-aadhaar");
+    }
+  }
+  return SCREENING_API_URL;
+}
+
 export function screeningResultToReport(
   result: ScreeningResult,
   reportReference: string,
-  options?: { documentImageUrl?: string | undefined; livePhotoUrl?: string | undefined }
+  options?: { documentImageUrl?: string | undefined; livePhotoUrl?: string | undefined; documentType?: string | undefined }
 ): ReportRecord {
   const visual = result.ocr_validation?.visual || {};
   const mrz = result.ocr_validation?.mrz || {};
+  const aadhaar = result.aadhaar_validation || {};
+  const aadhaarFields = aadhaar.fields || {};
   const tamper = result.tamper_detection || {};
   const features = tamper.features || {};
   const overall = result.overall || {};
@@ -137,20 +179,23 @@ export function screeningResultToReport(
   const checksum = mrz.checksum_valid;
   const mrzChecksumValid = typeof checksum === "object" && checksum !== null
     ? Object.values(checksum as Record<string, unknown>).every((value) => value === true)
-    : null;
+    : (typeof aadhaar.number_validation?.valid === "boolean" ? aadhaar.number_validation.valid : null);
+
+  const isAadhaar = Boolean(result.aadhaar_validation || (options?.documentType && (options.documentType.toLowerCase().includes("aadhaar") || options.documentType.toLowerCase().includes("adhar"))));
+  const docType = options?.documentType || (isAadhaar ? "Adhar" : "PASSPORT");
 
   return {
     id: `local-${reportReference}`,
     reportReference,
     status: "COMPLETED",
-    documentType: "PASSPORT",
+    documentType: docType,
     overallRiskScore,
     verdict: overallRiskScore !== null && overallRiskScore < 30 && (tamperedProbability === null || tamperedProbability < 20) ? "Passed" : "Flagged",
     riskLevel: textValue(overall.risk_level),
-    fullName: textValue(visual.name) || textValue(mrz.name_mrz),
-    dateOfBirth: textValue(visual.date_of_birth) || textValue(mrz.dob_mrz),
-    identifier: textValue(visual.passport_number) || textValue(mrz.passport_number_mrz),
-    nationality: textValue(visual.nationality) || textValue(mrz.nationality_mrz),
+    fullName: textValue(visual.name) || textValue(mrz.name_mrz) || textValue(aadhaarFields.name),
+    dateOfBirth: textValue(visual.date_of_birth) || textValue(mrz.dob_mrz) || textValue(aadhaarFields.dob),
+    identifier: textValue(visual.passport_number) || textValue(mrz.passport_number_mrz) || textValue(aadhaarFields.aadhaar_number),
+    nationality: textValue(visual.nationality) || textValue(mrz.nationality_mrz) || (isAadhaar ? "INDIAN" : null),
     mrzChecksumValid,
     authenticityConfidence: tamperedProbability === null ? null : 100 - tamperedProbability,
     tamperedProbability,
@@ -210,11 +255,15 @@ export async function createReport(input: {
   documentImageUrl?: string | undefined;
   livePhotoUrl?: string | undefined;
 }): Promise<{ report: ReportRecord; persistence: Promise<{ report: ReportRecord }> }> {
+  const isAadhaar = input.documentType.toLowerCase().includes("aadhaar") || input.documentType.toLowerCase().includes("adhar");
+  const targetUrl = getScreeningUrl(input.documentType);
+  const dbDocumentType = isAadhaar ? "Adhar" : input.documentType;
+
   const screeningFormData = new FormData();
   screeningFormData.append("doc_image", input.document);
   screeningFormData.append("live_image", input.livePhoto);
 
-  const screeningResponse = await fetch(SCREENING_API_URL, {
+  const screeningResponse = await fetch(targetUrl, {
     method: "POST",
     body: screeningFormData,
   });
@@ -223,6 +272,7 @@ export async function createReport(input: {
   const report = screeningResultToReport(screeningResult, reportReference, {
     documentImageUrl: input.documentImageUrl,
     livePhotoUrl: input.livePhotoUrl,
+    documentType: dbDocumentType,
   });
 
   const persistence = fetch(`${API_BASE_URL}/api/v1/report/from-screening`, {
@@ -230,7 +280,7 @@ export async function createReport(input: {
     credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      documentType: input.documentType,
+      documentType: dbDocumentType,
       consentGranted: input.consentGranted,
       reportReference,
       screeningResult,

@@ -316,6 +316,14 @@ export default function ReportPage() {
   const ocrValidation = screeningResult?.ocr_validation;
   const visualData = ocrValidation?.visual;
   const mrzData = ocrValidation?.mrz;
+  const aadhaarValidation = screeningResult?.aadhaar_validation;
+  const aadhaarFields = aadhaarValidation?.fields;
+  const aadhaarNumberVal = aadhaarValidation?.number_validation;
+  const aadhaarOcrIssues = aadhaarValidation?.ocr_issues as string[] | undefined;
+  const isAadhaarReport =
+    Boolean(aadhaarValidation) ||
+    report.documentType?.toLowerCase().includes("adhar") ||
+    report.documentType?.toLowerCase().includes("aadhaar");
   const tamperData = screeningResult?.tamper_detection;
   const faceData = screeningResult?.face_verification;
   const overallData = screeningResult?.overall;
@@ -493,9 +501,9 @@ export default function ReportPage() {
 
             <dl className="mt-6 grid gap-3 sm:grid-cols-2">
               <Metric label="Full Name" value={report.name} />
-              <Metric label="Passport Identifier" value={report.identifier} />
+              <Metric label={isAadhaarReport ? "Aadhaar Number" : "Passport Identifier"} value={report.identifier} />
               <Metric label="Date of Birth" value={report.dateOfBirth} />
-              <Metric label="Nationality" value={report.nationality} />
+              <Metric label={isAadhaarReport ? "Gender" : "Nationality"} value={isAadhaarReport ? (aadhaarFields?.gender as string | undefined) || "—" : report.nationality} />
             </dl>
           </section>
 
@@ -636,8 +644,98 @@ export default function ReportPage() {
 
         {/* Detailed Sections Grid */}
         <div className="grid gap-8 lg:grid-cols-2">
-          {/* Machine Readable Zone (MRZ) & OCR Section */}
-          <section className="rounded-2xl border border-red-500/15 bg-white/[0.035] p-6 shadow-[0_20px_55px_rgba(90,12,28,0.14)] backdrop-blur-xl space-y-6">
+          {/* Machine Readable Zone (MRZ) / Aadhaar Validation Section */}
+          {isAadhaarReport ? (
+            /* ── Aadhaar Card Inspection & QR Validation ── */
+            <section className="rounded-2xl border border-red-500/15 bg-white/[0.035] p-6 shadow-[0_20px_55px_rgba(90,12,28,0.14)] backdrop-blur-xl space-y-6">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <Scan className="h-5 w-5 text-red-300" />
+                  <div>
+                    <h2 className="font-bold text-white">Aadhaar Card Inspection</h2>
+                    <p className="mt-0.5 text-xs text-slate-500">Verhoeff number validation, QR code & OCR extraction</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span
+                    className={`rounded-full border px-2.5 py-0.5 font-mono text-[10px] font-bold uppercase ${
+                      aadhaarNumberVal?.valid
+                        ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+                        : "border-red-500/40 bg-red-500/10 text-red-300"
+                    }`}
+                  >
+                    {aadhaarNumberVal?.valid ? "Number Valid" : "Number Invalid"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Verhoeff Number Validation */}
+              <div className={`flex items-center gap-3 rounded-xl border p-4 ${
+                aadhaarNumberVal?.valid
+                  ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-300"
+                  : "border-red-500/25 bg-red-500/10 text-red-300"
+              }`}>
+                {aadhaarNumberVal?.valid ? (
+                  <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-400" />
+                ) : (
+                  <CircleAlert className="h-5 w-5 shrink-0 text-red-400" />
+                )}
+                <div>
+                  <p className="text-sm font-bold">
+                    Verhoeff Algorithm: {aadhaarNumberVal?.valid ? "VALID" : "INVALID"}
+                  </p>
+                  {aadhaarNumberVal?.reason && (
+                    <p className="text-xs opacity-80 mt-0.5">{aadhaarNumberVal.reason as string}</p>
+                  )}
+                </div>
+              </div>
+
+              {/* QR Code Status */}
+              <div className="rounded-xl border border-white/10 bg-black/20 p-4 space-y-2">
+                <div className="flex items-center gap-2 mb-2">
+                  <FileText className="h-4 w-4 text-red-300" />
+                  <p className="text-xs font-bold uppercase tracking-wider text-white">QR Code Status</p>
+                </div>
+                {aadhaarValidation?.qr_data ? (
+                  <p className="text-xs text-emerald-300 font-mono">QR data decoded successfully</p>
+                ) : (
+                  <div className="flex items-center gap-1.5">
+                    <AlertTriangle className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                    <p className="text-xs text-amber-300">QR code not found on document</p>
+                  </div>
+                )}
+              </div>
+
+              {/* OCR Issues */}
+              {aadhaarOcrIssues && aadhaarOcrIssues.length > 0 && (
+                <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 space-y-2">
+                  <p className="text-xs font-bold uppercase tracking-wider text-amber-300">OCR Issues Detected</p>
+                  <div className="space-y-1">
+                    {aadhaarOcrIssues.map((issue, i) => (
+                      <div key={i} className="flex items-center gap-1.5">
+                        <CircleAlert className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                        <span className="text-xs text-amber-200">{issue}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Parsed Aadhaar Fields Grid */}
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Metric label="Aadhaar Number" value={
+                  aadhaarFields?.aadhaar_number
+                    ? String(aadhaarFields.aadhaar_number).replace(/(\d{4})(\d{4})(\d{4})/, "$1 $2 $3")
+                    : report.identifier
+                } />
+                <Metric label="Name (OCR)" value={(aadhaarFields?.name as string | undefined) || report.name} />
+                <Metric label="Date of Birth" value={(aadhaarFields?.dob as string | undefined) || report.dateOfBirth} />
+                <Metric label="Gender" value={(aadhaarFields?.gender as string | undefined) || "—"} />
+              </div>
+            </section>
+          ) : (
+            /* ── Passport MRZ Inspection ── */
+            <section className="rounded-2xl border border-red-500/15 bg-white/[0.035] p-6 shadow-[0_20px_55px_rgba(90,12,28,0.14)] backdrop-blur-xl space-y-6">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <Scan className="h-5 w-5 text-red-300" />
@@ -743,6 +841,9 @@ export default function ReportPage() {
               <Metric label="MRZ Expiry" value={mrzData?.expiry_mrz || "N/A"} />
             </div>
           </section>
+          )}
+
+
 
           {/* Tamper Detection & Forensic Features Section */}
           <section className="rounded-2xl border border-red-500/15 bg-white/[0.035] p-6 shadow-[0_20px_55px_rgba(90,12,28,0.14)] backdrop-blur-xl space-y-6">

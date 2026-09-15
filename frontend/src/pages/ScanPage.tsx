@@ -42,8 +42,8 @@ export default function ScanPage() {
       title: "Aadhaar Card",
       subtitle: "QR & OCR Verification",
       icon: CreditCard,
-      status: "coming_soon",
-      statusText: "COMING SOON",
+      status: "ready",
+      statusText: "READY",
     },
     {
       id: "visa",
@@ -112,7 +112,7 @@ export default function ScanPage() {
   const chooseFile = (selectedFile?: File) => {
     if (!selectedFile) return;
     if (!selectedFile.type.match(/^image\/(png|jpeg)$/)) {
-      setError("Use a PNG or JPG passport image.");
+      setError("Use a PNG or JPG document image.");
       return;
     }
     setError("");
@@ -353,7 +353,7 @@ export default function ScanPage() {
                 className="relative flex h-72 w-full cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-700 bg-slate-950/50 px-5 text-center transition-colors hover:border-red-500/70"
               >
                 <UploadCloud className="h-9 w-9 text-red-300" />
-                <p className="mt-4 font-semibold text-slate-200">Drop Passport Image</p>
+                <p className="mt-4 font-semibold text-slate-200">Drop {selectedDoc} Image</p>
                 <p className="mt-2 text-xs text-slate-500">PNG or JPG • Edge MIME verified</p>
                 <input
                   ref={inputRef}
@@ -526,7 +526,7 @@ export default function ScanPage() {
               <h2 className="mt-5 text-xl font-bold text-white">Screening document...</h2>
               <p className="mt-2 text-sm leading-6 text-slate-400">Sending both captures to the local verification service and preparing your report.</p>
               <div className="mt-6 h-1.5 overflow-hidden rounded-full bg-slate-800"><div className="h-full w-1/3 animate-pulse rounded-full bg-red-500" /></div>
-              <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.18em] text-red-300">OCR • MRZ • Integrity analysis</p>
+              <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.18em] text-red-300">OCR • {selectedDoc.includes("Aadhaar") ? "QR" : "MRZ"} • Integrity analysis</p>
             </div>
           </div>
         )}
