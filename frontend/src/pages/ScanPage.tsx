@@ -187,6 +187,12 @@ export default function ScanPage() {
     setError("");
     setRunning(true);
     try {
+      const docDataUrl = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = () => resolve("");
+        reader.readAsDataURL(documentFile);
+      });
       const photoResponse = await fetch(capturedPhotoUrl);
       const photoBlob = await photoResponse.blob();
       const livePhoto = new File([photoBlob], "live-photo.jpg", { type: "image/jpeg" });
@@ -195,8 +201,14 @@ export default function ScanPage() {
         livePhoto,
         documentType: selectedDoc,
         consentGranted: consented,
+        documentImageUrl: docDataUrl || previewUrl,
+        livePhotoUrl: capturedPhotoUrl,
       });
+      sessionStorage.setItem(`kavach:screening-report:${response.report.reportReference}`, JSON.stringify(response.report));
       navigate(`/dashboard/report/${response.report.reportReference}`);
+      void response.persistence.catch((persistenceError) => {
+        console.error("Unable to persist screening report:", persistenceError);
+      });
     } catch (requestError) {
       setRunning(false);
       setError(requestError instanceof Error ? requestError.message : "Unable to create the verification report.");

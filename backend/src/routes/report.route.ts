@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { randomUUID } from "node:crypto";
 import multer from "multer";
 import prismaClient, { withDatabaseRetry } from "../config/db.js";
 import { authMiddleware } from "../middleware/authMiddleware.js";
@@ -9,7 +10,7 @@ const upload = multer({
     limits: { fileSize: 25 * 1024 * 1024, files: 2 },
 });
 
-const screeningApiUrl = process.env.SCREENING_API_URL || "http://127.0.0.1:8000/screen-document";
+const screeningApiUrl = process.env.SCREENING_API_URL || "http://10.238.173.96:8000/screen-document";
 
 type ScreeningResponse = {
     ocr_validation?: {
@@ -57,6 +58,57 @@ const serializeReport = (report: any) => ({
 });
 
 const reportInclude = { document: { select: { documentType: true } } } as const;
+
+async function createStoredReport(userId: string, documentType: string, screeningResult: ScreeningResponse, requestedReference?: string) {
+    const visual = screeningResult.ocr_validation?.visual || {};
+    const mrz = screeningResult.ocr_validation?.mrz || {};
+    const tamper = screeningResult.tamper_detection || {};
+    const features = tamper.features || {};
+    const overall = screeningResult.overall || {};
+    const overallRiskScore = asNumber(overall.overall_risk_score);
+    const tamperedProbability = asNumber(tamper.tampered_probability);
+    const mrzChecks = mrz.checksum_valid;
+    const mrzChecksumValid = typeof mrzChecks === "object" && mrzChecks !== null
+        ? Object.values(mrzChecks as Record<string, unknown>).every((value) => value === true)
+        : undefined;
+    const verdict = overallRiskScore !== undefined && overallRiskScore < 30 && (tamperedProbability === undefined || tamperedProbability < 20) ? "Passed" : "Flagged";
+    const reportReference = requestedReference?.match(/^KAV-[A-Z0-9-]+$/)
+        ? requestedReference
+        : `KAV-${randomUUID().slice(0, 8).toUpperCase()}`;
+    const document = await prismaClient.document.create({ data: { userId, documentType } });
+
+    try {
+        return await prismaClient.documentReport.create({
+            data: {
+                reportReference,
+                userId,
+                documentId: document.id,
+                status: "COMPLETED",
+                overallRiskScore: overallRiskScore ?? null,
+                verdict,
+                riskLevel: asString(overall.risk_level) ?? null,
+                fullName: asString(visual.name) || asString(mrz.name_mrz) || null,
+                dateOfBirth: asString(visual.date_of_birth) || asString(mrz.dob_mrz) || null,
+                identifier: asString(visual.passport_number) || asString(mrz.passport_number_mrz) || null,
+                mrzChecksumValid: mrzChecksumValid ?? null,
+                authenticityConfidence: tamperedProbability === undefined ? null : 100 - tamperedProbability,
+                tamperedProbability: tamperedProbability ?? null,
+                tamperDecision: asString(tamper.decision) ?? null,
+                elaVariance: asNumber(features.ela) ?? null,
+                edgeResponse: asNumber(features.edge) ?? null,
+                noiseTexture: asNumber(features.noise_texture) ?? null,
+                sharpness: asNumber(features.sharpness) ?? null,
+                consentGranted: true,
+                consentedAt: new Date(),
+            },
+            include: reportInclude,
+        });
+    } catch (error) {
+        // The Neon driver does not support Prisma interactive transactions. Avoid orphaning a document on a failed report insert.
+        await prismaClient.document.delete({ where: { id: document.id } }).catch(() => undefined);
+        throw error;
+    }
+}
 
 reportRouter.get("/", authMiddleware, async (req, res) => {
     const userId = req.user?.id;
@@ -107,18 +159,42 @@ reportRouter.delete("/:id", authMiddleware, async (req, res) => {
         });
         if (!report) return res.status(404).json({ message: "Report not found" });
 
-        await prismaClient.$transaction(async (transaction) => {
-            await transaction.documentReport.delete({ where: { id: report.id } });
-            const remainingReports = await transaction.documentReport.count({ where: { documentId: report.documentId } });
-            if (remainingReports === 0) {
-                await transaction.document.delete({ where: { id: report.documentId } });
-            }
-        });
+        await prismaClient.documentReport.delete({ where: { id: report.id } });
+        const remainingReports = await prismaClient.documentReport.count({ where: { documentId: report.documentId } });
+        if (remainingReports === 0) {
+            await prismaClient.document.delete({ where: { id: report.documentId } });
+        }
 
         return res.status(200).json({ message: "Report deleted successfully" });
     } catch (error) {
         console.error("Error deleting report:", error);
         return res.status(500).json({ message: "Something went wrong" });
+    }
+});
+
+reportRouter.post("/from-screening", authMiddleware, async (req, res) => {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+    const documentType = String(req.body.documentType || "PASSPORT").toUpperCase();
+    const screeningResult = req.body.screeningResult as ScreeningResponse | undefined;
+    const reportReference = typeof req.body.reportReference === "string" ? req.body.reportReference : undefined;
+    if (req.body.consentGranted !== true) {
+        return res.status(400).json({ message: "Consent is required before screening" });
+    }
+    if (documentType !== "PASSPORT") {
+        return res.status(400).json({ message: "Only passport screening is currently supported" });
+    }
+    if (!screeningResult || typeof screeningResult !== "object" || Array.isArray(screeningResult)) {
+        return res.status(400).json({ message: "A valid screening result is required" });
+    }
+
+    try {
+        const report = await createStoredReport(userId, documentType, screeningResult, reportReference);
+        return res.status(201).json({ report: serializeReport(report) });
+    } catch (error) {
+        console.error("Error saving screening report:", error);
+        return res.status(500).json({ message: "Unable to save document report" });
     }
 });
 
@@ -159,48 +235,7 @@ reportRouter.post(
                 return res.status(502).json({ message: "Document screening service failed", details: screeningResult });
             }
 
-            const visual = screeningResult.ocr_validation?.visual || {};
-            const mrz = screeningResult.ocr_validation?.mrz || {};
-            const tamper = screeningResult.tamper_detection || {};
-            const features = tamper.features || {};
-            const overall = screeningResult.overall || {};
-            const overallRiskScore = asNumber(overall.overall_risk_score);
-            const tamperedProbability = asNumber(tamper.tampered_probability);
-            const mrzChecks = mrz.checksum_valid;
-            const mrzChecksumValid = typeof mrzChecks === "object" && mrzChecks !== null
-                ? Object.values(mrzChecks as Record<string, unknown>).every((value) => value === true)
-                : undefined;
-            const verdict = overallRiskScore !== undefined && overallRiskScore < 30 && (tamperedProbability === undefined || tamperedProbability < 20) ? "Passed" : "Flagged";
-            const reportReference = `KAV-${Date.now().toString().slice(-6)}`;
-
-            const report = await prismaClient.$transaction(async (transaction) => {
-                const document = await transaction.document.create({ data: { userId, documentType } });
-                return transaction.documentReport.create({
-                    data: {
-                        reportReference,
-                        userId,
-                        documentId: document.id,
-                        status: "COMPLETED",
-                        overallRiskScore: overallRiskScore ?? null,
-                        verdict,
-                        riskLevel: asString(overall.risk_level) ?? null,
-                        fullName: asString(visual.name) || asString(mrz.name_mrz) || null,
-                        dateOfBirth: asString(visual.date_of_birth) || asString(mrz.dob_mrz) || null,
-                        identifier: asString(visual.passport_number) || asString(mrz.passport_number_mrz) || null,
-                        mrzChecksumValid: mrzChecksumValid ?? null,
-                        authenticityConfidence: tamperedProbability === undefined ? null : 100 - tamperedProbability,
-                        tamperedProbability: tamperedProbability ?? null,
-                        tamperDecision: asString(tamper.decision) ?? null,
-                        elaVariance: asNumber(features.ela) ?? null,
-                        edgeResponse: asNumber(features.edge) ?? null,
-                        noiseTexture: asNumber(features.noise_texture) ?? null,
-                        sharpness: asNumber(features.sharpness) ?? null,
-                        consentGranted: true,
-                        consentedAt: new Date(),
-                    },
-                    include: reportInclude,
-                });
-            });
+            const report = await createStoredReport(userId, documentType, screeningResult);
 
             return res.status(201).json({ report: serializeReport(report) });
         } catch (error) {
